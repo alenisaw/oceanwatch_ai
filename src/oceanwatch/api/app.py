@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 def _ndarray_to_b64_png(arr) -> str:
     """Encode a uint8 HxWx3 numpy array as a base64 PNG data URI."""
     from PIL import Image
+
     img = Image.fromarray(arr)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -29,13 +30,13 @@ def _artifacts_to_response(artifacts, latency_ms: float | None = None) -> dict:
 def create_app():
     """Create the optional FastAPI application."""
     try:
-        from fastapi import FastAPI, File, HTTPException, UploadFile
+        from fastapi import FastAPI, File, UploadFile
         from fastapi.middleware.cors import CORSMiddleware
     except ImportError as error:
         msg = "Install API dependencies with: pip install -e '.[api]'"
         raise RuntimeError(msg) from error
 
-    from oceanwatch.data.io import load_sar_tile, make_synthetic_tile
+    from oceanwatch.data.io import make_synthetic_tile
     from oceanwatch.inference.pipeline import (
         analyze_tile,
         analyze_tile_with_artifacts,
@@ -98,7 +99,9 @@ def create_app():
     # ── Batch ────────────────────────────────────────────────────────────────
 
     @app.post("/analyze/batch")
-    async def analyze_batch_endpoint(files: list[UploadFile] = File(default=[])) -> dict[str, object]:
+    async def analyze_batch_endpoint(
+        files: list[UploadFile] = File(default=[]),
+    ) -> dict[str, object]:
         if not files or all(f.filename == "" for f in files):
             # No files sent — run the built-in demo batch
             return _run_demo_batch(analyze_tile)
@@ -119,24 +122,28 @@ def create_app():
                 t0 = time.perf_counter()
                 report = analyze_tile(tile, image_id=image_id)
                 lat = round((time.perf_counter() - t0) * 1000, 2)
-                results.append({
-                    "tile_id": image_id,
-                    "latency_ms": lat,
-                    "risk_level": report.risk_level,
-                    "confidence": report.confidence,
-                    "affected_pixel_ratio": report.affected_pixel_ratio,
-                    "regions_detected": report.mask_summary.regions_detected,
-                })
+                results.append(
+                    {
+                        "tile_id": image_id,
+                        "latency_ms": lat,
+                        "risk_level": report.risk_level,
+                        "confidence": report.confidence,
+                        "affected_pixel_ratio": report.affected_pixel_ratio,
+                        "regions_detected": report.mask_summary.regions_detected,
+                    }
+                )
             except Exception as exc:  # noqa: BLE001
-                results.append({
-                    "tile_id": image_id,
-                    "error": str(exc),
-                    "latency_ms": 0.0,
-                    "risk_level": "error",
-                    "confidence": 0.0,
-                    "affected_pixel_ratio": 0.0,
-                    "regions_detected": 0,
-                })
+                results.append(
+                    {
+                        "tile_id": image_id,
+                        "error": str(exc),
+                        "latency_ms": 0.0,
+                        "risk_level": "error",
+                        "confidence": 0.0,
+                        "affected_pixel_ratio": 0.0,
+                        "regions_detected": 0,
+                    }
+                )
 
         total_ms = round((time.perf_counter() - t_total) * 1000, 2)
         tps = round(len(results) / (total_ms / 1000), 2) if total_ms > 0 else 0.0
@@ -187,6 +194,7 @@ _ALLOWED_EXTS = {".npy", ".npz", ".tif", ".tiff"}
 
 def _validate_extension(filename: str | None) -> None:
     from fastapi import HTTPException
+
     suffix = pathlib.Path(filename or "").suffix.lower()
     if suffix not in _ALLOWED_EXTS:
         raise HTTPException(
@@ -197,7 +205,9 @@ def _validate_extension(filename: str | None) -> None:
 
 def _safe_load(path: pathlib.Path):
     from fastapi import HTTPException
+
     from oceanwatch.data.io import load_sar_tile
+
     try:
         return load_sar_tile(path)
     except Exception as exc:
@@ -206,6 +216,7 @@ def _safe_load(path: pathlib.Path):
 
 def _run_demo_batch(analyze_tile_fn) -> dict:
     from oceanwatch.data.io import make_synthetic_tile
+
     demo_configs = [
         ("high_confidence_compact", 2.0),
         ("look_alike_uncertain", 0.6),
@@ -220,14 +231,16 @@ def _run_demo_batch(analyze_tile_fn) -> dict:
         t0 = time.perf_counter()
         report = analyze_tile_fn(tile, image_id=name)
         lat = round((time.perf_counter() - t0) * 1000, 2)
-        results.append({
-            "tile_id": name,
-            "latency_ms": lat,
-            "risk_level": report.risk_level,
-            "confidence": report.confidence,
-            "affected_pixel_ratio": report.affected_pixel_ratio,
-            "regions_detected": report.mask_summary.regions_detected,
-        })
+        results.append(
+            {
+                "tile_id": name,
+                "latency_ms": lat,
+                "risk_level": report.risk_level,
+                "confidence": report.confidence,
+                "affected_pixel_ratio": report.affected_pixel_ratio,
+                "regions_detected": report.mask_summary.regions_detected,
+            }
+        )
     total_ms = round((time.perf_counter() - t_total) * 1000, 2)
     tps = round(len(results) / (total_ms / 1000), 2) if total_ms > 0 else 0.0
     return {
