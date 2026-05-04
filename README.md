@@ -1,7 +1,7 @@
 # OceanWatch AI
 
 ![CI](https://github.com/alenisaw/oceanwatch-ai/actions/workflows/ci.yml/badge.svg)
-![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
 OceanWatch AI is a multimodal marine pollution triage assistant.
@@ -62,7 +62,7 @@ Template or VLM incident report
 JSON/API export
 ```
 
-The current scaffold ships with a deterministic demo predictor so the repository can run, test, and pass CI before model checkpoints are added.
+The current scaffold ships with a deterministic demo predictor so the repository can run, test, and pass CI before model checkpoints are added. It also writes preview and mask overlay images so the demo shows visible inspection artifacts, not only text.
 
 ---
 
@@ -89,6 +89,16 @@ python -m pip install -U pip
 pip install -e ".[dev]"
 ```
 
+Optional install groups:
+
+```bash
+pip install -e ".[ui]"              # Gradio dashboard
+pip install -e ".[api]"             # FastAPI service
+pip install -e ".[vision]"          # TIFF/GeoTIFF-style loading through tifffile
+pip install -e ".[ml]"              # PyTorch path for model checkpoints
+pip install -e ".[dev,api,ui,vision,ml]"
+```
+
 Run checks:
 
 ```bash
@@ -108,6 +118,23 @@ Expected output:
 
 ```text
 outputs/demo/result.json
+outputs/demo/preview.png
+outputs/demo/overlay.png
+outputs/demo/arrays/probability_map.npy
+outputs/demo/arrays/binary_mask.npy
+```
+
+Create prepared demo cases and run a batch benchmark:
+
+```bash
+python scripts/create_demo_cases.py --output data/demo_cases
+python scripts/run_batch.py --input-dir data/demo_cases --output outputs/batch
+```
+
+Expected output:
+
+```text
+outputs/batch/batch_results.json
 ```
 
 ---
@@ -142,7 +169,9 @@ No notebooks, fake screenshots, empty pitch folders, or unused model files are i
 |---|---|
 | `python -m oceanwatch health` | Verify package import and runtime basics |
 | `python scripts/run_demo.py --output outputs/demo` | Run deterministic demo pipeline |
-| `python scripts/predict_one.py --image path/to/tile.npy` | Run analysis on a local NumPy tile |
+| `python scripts/predict_one.py --image path/to/tile.npy` | Run analysis on a local NumPy/TIFF tile |
+| `python scripts/create_demo_cases.py --output data/demo_cases` | Create prepared synthetic demo tiles |
+| `python scripts/run_batch.py --input-dir data/demo_cases --output outputs/batch` | Run batch inference and throughput timing |
 | `pytest -q` | Run unit tests |
 | `ruff check .` | Run lint checks |
 
@@ -185,6 +214,22 @@ batch satellite tile throughput benchmark
 ```
 
 Do not make ROCm packages mandatory for default CI. Keep GPU dependencies in optional install groups or separate Docker images.
+
+For the AMD Developer Cloud / AMD Instinct MI300X path, use:
+
+```text
+docs/AMD_MI300X_RUNBOOK.md
+```
+
+The intended validation order is:
+
+```text
+local CPU fallback demo
+prepared batch demo
+ROCm PyTorch GPU visibility check
+MI300X batch throughput benchmark
+optional vLLM/VLM report generation
+```
 
 ---
 

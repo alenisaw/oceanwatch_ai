@@ -18,6 +18,14 @@ python scripts/run_demo.py --output outputs/demo
 cat outputs/demo/result.json
 ```
 
+Prepared cases and batch benchmark:
+
+```bash
+python scripts/create_demo_cases.py --output data/demo_cases
+python scripts/run_batch.py --input-dir data/demo_cases --output outputs/batch
+cat outputs/batch/batch_results.json
+```
+
 ## Pitch line
 
 ```text

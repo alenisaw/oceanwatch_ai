@@ -34,6 +34,28 @@ def normalize_sar_tile(tile: np.ndarray) -> np.ndarray:
     return np.stack(channels, axis=-1).astype(np.float32)
 
 
+def normalize_sar_channels(tile: np.ndarray) -> np.ndarray:
+    """Alias used by the project plan terminology."""
+    return normalize_sar_tile(tile)
+
+
+def make_rgb_preview(tile: np.ndarray) -> np.ndarray:
+    """Create an RGB preview from a normalized SAR-like tile."""
+    normalized = normalize_sar_tile(tile)
+    channel_count = normalized.shape[-1]
+
+    if channel_count == 1:
+        rgb = np.repeat(normalized, 3, axis=-1)
+    elif channel_count == 2:
+        vv = normalized[..., 0]
+        vh = normalized[..., 1]
+        rgb = np.stack([vv, 0.5 * (vv + vh), vh], axis=-1)
+    else:
+        rgb = normalized[..., :3]
+
+    return np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
+
+
 def to_model_input(tile: np.ndarray) -> np.ndarray:
     """Convert channel-last image to channel-first model input."""
     normalized = normalize_sar_tile(tile)

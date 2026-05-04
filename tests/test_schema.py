@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from oceanwatch.reporting.schema import IncidentReport, MaskSummary, ModelInfo, SourceInfo
 
@@ -6,7 +6,7 @@ from oceanwatch.reporting.schema import IncidentReport, MaskSummary, ModelInfo, 
 def test_incident_report_schema() -> None:
     report = IncidentReport(
         incident_id="ow-test",
-        created_at=datetime.now(tz=UTC),
+        created_at=datetime.now(tz=timezone.utc),
         source=SourceInfo(image_id="sample", sensor="Sentinel-1 SAR", channels=["VV", "VH"]),
         incident_type="possible_oil_like_anomaly",
         risk_level="medium",

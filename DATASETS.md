@@ -25,9 +25,21 @@ data/processed/
 
 ## Input assumptions
 
-The first implementation should support NumPy arrays for CI-safe testing and prepared demos.
+The first implementation supports NumPy arrays for CI-safe testing and prepared demos.
+TIFF/GeoTIFF-style loading is available through the optional `vision` extra:
 
-Real dataset support should add TIFF/GeoTIFF loading later through optional dependencies such as `tifffile` or `rasterio`.
+```bash
+pip install -e ".[vision]"
+```
+
+Supported input extensions:
+
+```text
+.npy
+.npz
+.tif
+.tiff
+```
 
 ## Demo cases
 

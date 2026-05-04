@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 
-def write_json(path: Path, payload: dict[str, Any]) -> None:
+def write_json(path: Path, payload: Any) -> None:
     """Write a JSON payload to disk."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as file:
