@@ -1,0 +1,4 @@
+inference:
+  threshold: 0.5
+  min_component_pixels: 8
+  image_size: 512

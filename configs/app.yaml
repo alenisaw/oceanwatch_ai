@@ -1,0 +1,5 @@
+app:
+  name: OceanWatch AI
+  environment: local
+  reporting_mode: template
+  runtime: cpu
