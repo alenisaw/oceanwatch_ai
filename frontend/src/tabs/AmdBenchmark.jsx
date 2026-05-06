@@ -12,7 +12,7 @@ const RISK_COLORS = {
   high:   'bg-red-500',
 };
 
-export default function AmdBenchmark() {
+export default function AmdBenchmark({ apiUrl }) {
   const [status, setStatus]     = useState('idle');
   const [result, setResult]     = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -21,14 +21,14 @@ export default function AmdBenchmark() {
     setStatus('loading');
     setErrorMsg('');
     try {
-      const data = await fetchBenchmark();
+      const data = await fetchBenchmark(apiUrl);
       setResult(data);
       setStatus('success');
     } catch (err) {
       setErrorMsg(err.message ?? 'Unknown error');
       setStatus('error');
     }
-  }, []);
+  }, [apiUrl]);
 
   const isLoading = status === 'loading';
   const r = result;

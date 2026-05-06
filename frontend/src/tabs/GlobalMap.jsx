@@ -321,7 +321,7 @@ function HeatSurfaceLayer({ gradient, incidents, pulseKey }) {
   return null;
 }
 
-export default function GlobalMap() {
+export default function GlobalMap({ apiUrl }) {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
@@ -353,13 +353,13 @@ export default function GlobalMap() {
         limit: 2000,
         startDate,
         endDate,
-      });
+      }, apiUrl);
       const surface = await fetchOceanRiskSurface({
         threat: 'Oil',
         limit: 2000,
         startDate,
         endDate,
-      });
+      }, apiUrl);
       setPayload(data);
       setSurfacePayload(surface);
       setSelected(data.incidents?.[0] ?? null);
@@ -369,7 +369,7 @@ export default function GlobalMap() {
       setError(err.message ?? 'Failed to load NOAA incident feed');
       setStatus('error');
     }
-  }, [startDate, endDate]);
+  }, [apiUrl, startDate, endDate]);
 
   useEffect(() => {
     loadIncidents();
