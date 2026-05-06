@@ -1,13 +1,16 @@
 /**
- * OceanWatch AI — API adapter layer.
- * All backend communication is isolated here. No mock logic leaks into UI components.
- * Demo fallback (DEMO_RESULT) is exported but clearly flagged as synthetic.
+ * OceanWatch AI API adapter layer.
+ * All backend communication is isolated here.
  */
 
-const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001';
+const DEFAULT_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
-async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, options);
+function resolveBase(apiUrl) {
+  return (apiUrl || DEFAULT_BASE).replace(/\/$/, '');
+}
+
+async function request(path, options = {}, apiUrl) {
+  const res = await fetch(`${resolveBase(apiUrl)}${path}`, options);
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {
@@ -21,29 +24,29 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-export async function healthCheck() {
-  return request('/health');
+export async function healthCheck(apiUrl) {
+  return request('/health', {}, apiUrl);
 }
 
-/** Run demo analysis — returns IncidentReport only (no images). */
-export async function runDemoAnalysis() {
-  return request('/analyze/demo', { method: 'POST' });
+/** Run demo analysis and return IncidentReport only. */
+export async function runDemoAnalysis(apiUrl) {
+  return request('/analyze/demo', { method: 'POST' }, apiUrl);
 }
 
-/** Run demo analysis with SAR preview + mask overlay as base64 data URIs. */
-export async function runDemoAnalysisFull() {
-  return request('/analyze/demo/full', { method: 'POST' });
+/** Run demo analysis with SAR preview and mask overlay as base64 data URIs. */
+export async function runDemoAnalysisFull(apiUrl) {
+  return request('/analyze/demo/full', { method: 'POST' }, apiUrl);
 }
 
 /**
  * Analyze a single uploaded tile file.
- * @param {File} file — .npy / .npz / .tif / .tiff
+ * @param {File} file - .npy / .npz / .tif / .tiff
  * @returns {{ report, preview_b64, overlay_b64, latency_ms }}
  */
-export async function analyzeTileFull(file) {
+export async function analyzeTileFull(file, apiUrl) {
   const form = new FormData();
   form.append('file', file);
-  return request('/analyze/tile/full', { method: 'POST', body: form });
+  return request('/analyze/tile/full', { method: 'POST', body: form }, apiUrl);
 }
 
 /**
@@ -51,31 +54,31 @@ export async function analyzeTileFull(file) {
  * @param {File[]} files
  * @returns {{ total_tiles, total_latency_ms, tiles_per_second, results[], timestamp }}
  */
-export async function analyzeBatch(files) {
+export async function analyzeBatch(files, apiUrl) {
   const form = new FormData();
   for (const f of files) form.append('files', f);
-  return request('/analyze/batch', { method: 'POST', body: form });
+  return request('/analyze/batch', { method: 'POST', body: form }, apiUrl);
 }
 
 /**
- * Fetch benchmark results (synthetic CPU run; swap hardware label for MI300X on AMD infra).
+ * Fetch benchmark results.
  * @returns {{ hardware, tiles_tested, avg_latency_ms, p95_latency_ms, p99_latency_ms, tiles_per_second, risk_distribution, timestamp }}
  */
-export async function fetchBenchmark() {
-  return request('/benchmark');
+export async function fetchBenchmark(apiUrl) {
+  return request('/benchmark', {}, apiUrl);
 }
 
 /**
  * Fetch official NOAA IncidentNews records with coordinates.
  * @param {{ threat?: string, limit?: number, startDate?: string, endDate?: string }} filters
  */
-export async function fetchNoaaIncidents(filters = {}) {
+export async function fetchNoaaIncidents(filters = {}, apiUrl) {
   const params = new URLSearchParams();
   params.set('threat', filters.threat ?? 'Oil');
   params.set('limit', String(filters.limit ?? 1200));
   if (filters.startDate) params.set('start_date', filters.startDate);
   if (filters.endDate) params.set('end_date', filters.endDate);
-  return request(`/incidents/noaa?${params.toString()}`);
+  return request(`/incidents/noaa?${params.toString()}`, {}, apiUrl);
 }
 
 /**
@@ -83,11 +86,11 @@ export async function fetchNoaaIncidents(filters = {}) {
  * Includes NOAA reported incidents plus contextual maritime oil-risk anchors.
  * @param {{ threat?: string, limit?: number, startDate?: string, endDate?: string }} filters
  */
-export async function fetchOceanRiskSurface(filters = {}) {
+export async function fetchOceanRiskSurface(filters = {}, apiUrl) {
   const params = new URLSearchParams();
   params.set('threat', filters.threat ?? 'Oil');
   params.set('limit', String(filters.limit ?? 1200));
   if (filters.startDate) params.set('start_date', filters.startDate);
   if (filters.endDate) params.set('end_date', filters.endDate);
-  return request(`/incidents/ocean-risk?${params.toString()}`);
+  return request(`/incidents/ocean-risk?${params.toString()}`, {}, apiUrl);
 }

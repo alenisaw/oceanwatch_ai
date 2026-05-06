@@ -15,7 +15,7 @@ const PANEL_JSON   = 'json';
 /**
  * @param {{ onNewIncident: (report) => void }} props
  */
-export default function SingleTile({ onNewIncident }) {
+export default function SingleTile({ apiUrl, onNewIncident }) {
   const [status, setStatus]     = useState('idle'); // idle | loading | success | error
   const [result, setResult]     = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -43,10 +43,10 @@ export default function SingleTile({ onNewIncident }) {
     }
   }, [onNewIncident]);
 
-  const runDemo   = () => runAnalysis(runDemoAnalysisFull);
+  const runDemo   = () => runAnalysis(() => runDemoAnalysisFull(apiUrl));
   const runUpload = () => {
     if (!file) return;
-    runAnalysis(() => analyzeTileFull(file));
+    runAnalysis(() => analyzeTileFull(file, apiUrl));
   };
 
   const r = result?.report;
