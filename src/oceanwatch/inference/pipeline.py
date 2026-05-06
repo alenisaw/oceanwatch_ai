@@ -49,6 +49,8 @@ def analyze_tile(tile: np.ndarray, image_id: str = "demo_tile") -> IncidentRepor
 def analyze_tile_with_artifacts(
     tile: np.ndarray,
     image_id: str = "demo_tile",
+    sensor: str = "Sentinel-1 SAR",
+    channels: list[str] | None = None,
 ) -> AnalysisArtifacts:
     """Analyze one tile and return the report plus visual artifacts."""
     probability = demo_probability_map(tile)
@@ -66,8 +68,8 @@ def analyze_tile_with_artifacts(
         created_at=datetime.now(tz=timezone.utc),
         source=SourceInfo(
             image_id=image_id,
-            sensor="Sentinel-1 SAR",
-            channels=["VV", "VH"],
+            sensor=sensor,
+            channels=channels or ["VV", "VH"],
         ),
         incident_type="possible_oil_like_anomaly",
         risk_level=metrics.risk_level,

@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "alenisaw" }]
 dependencies = [
+    "matplotlib>=3.8",
     "numpy>=1.26",
     "pillow>=10.0",
     "pydantic>=2.7",
@@ -26,9 +27,11 @@ api = [
 ]
 ui = [
     "gradio>=4.44",
+    "plotly>=5.0",
 ]
 vision = [
     "tifffile>=2024.8.30",
+    "imageio",
 ]
 ml = [
     "torch>=2.4",

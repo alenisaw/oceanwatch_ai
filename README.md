@@ -120,9 +120,35 @@ Expected output:
 outputs/demo/result.json
 outputs/demo/preview.png
 outputs/demo/overlay.png
+outputs/demo/heatmap.png
 outputs/demo/arrays/probability_map.npy
 outputs/demo/arrays/binary_mask.npy
 ```
+
+## UI Features
+
+| Feature | Description |
+|---|---|
+| Heatmap | Gradient pollution visualization |
+| Real-time analytics | Interactive clickable map |
+| Timeline | Temporal slider for change analysis |
+| Satellite loader | Sentinel-2, Landsat, MODIS, Copernicus, NOAA |
+| Dashboard | Gradio UI with all features integrated |
+| Global map | NOAA IncidentNews markers over NASA GIBS date-based imagery |
+
+Run the API and React frontend for the global map:
+
+```bash
+make api
+make frontend
+```
+
+Official data sources used by the global map:
+
+| Source | Use |
+|---|---|
+| NOAA IncidentNews raw CSV | Reported oil and chemical incident records with coordinates |
+| NASA GIBS WMTS | Date-based satellite imagery for temporal visual inspection |
 
 Create prepared demo cases and run a batch benchmark:
 
