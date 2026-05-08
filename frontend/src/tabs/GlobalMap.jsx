@@ -1,53 +1,79 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import L from 'leaflet';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import maplibregl from 'maplibre-gl';
 import {
-  CircleMarker,
-  LayersControl,
-  MapContainer,
-  Popup,
-  TileLayer,
-  useMap,
-} from 'react-leaflet';
-import {
+  Activity,
+  BarChart3,
   Bot,
   CalendarDays,
   CheckCircle2,
   Command,
+  Crosshair,
   ExternalLink,
+  Filter,
   Flame,
+  Gauge,
   Globe2,
-  Layers,
-  Map,
-  Radar,
+  Layers3,
+  LocateFixed,
+  MapIcon,
+  RadioTower,
   RefreshCcw,
+  FileText,
+  Satellite,
   Search,
   ShieldCheck,
+  Sparkles,
+  Waves,
 } from 'lucide-react';
-import 'leaflet/dist/leaflet.css';
-import 'leaflet.heat';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { fetchNoaaIncidents, fetchOceanRiskSurface } from '../api/oceanwatch.js';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const DEFAULT_START = '2010-01-01';
 const DEFAULT_END = TODAY;
-const MAP_MODE_POINTS = 'points';
-const MAP_MODE_HEAT = 'heat';
+
+const MAP_VIEWS = {
+  standard: {
+    label: 'Standard',
+    icon: MapIcon,
+    basemap: 'standard',
+    description: 'Navigation base with signal context',
+  },
+  satellite: {
+    label: 'Satellite',
+    icon: Satellite,
+    basemap: 'satellite',
+    description: 'Imagery base with marine overlays',
+  },
+  heatmap: {
+    label: 'Heatmap',
+    icon: Flame,
+    basemap: 'satellite',
+    description: 'GPU density surface',
+  },
+  zones: {
+    label: 'Zones',
+    icon: Layers3,
+    basemap: 'standard',
+    description: 'Pollution area overlay',
+  },
+};
 
 const GEOGRAPHY_FILTERS = [
-  { id: 'global', label: 'Global', type: 'World', bounds: null },
-  { id: 'north-america', label: 'North America', type: 'Continent', bounds: [[5, -170], [75, -45]] },
-  { id: 'europe', label: 'Europe', type: 'Continent', bounds: [[34, -25], [72, 45]] },
-  { id: 'asia', label: 'Asia', type: 'Continent', bounds: [[-10, 45], [72, 150]] },
-  { id: 'africa', label: 'Africa', type: 'Continent', bounds: [[-36, -20], [38, 55]] },
-  { id: 'south-america', label: 'South America', type: 'Continent', bounds: [[-56, -85], [14, -30]] },
-  { id: 'gulf-mexico', label: 'Gulf of Mexico', type: 'Sea', bounds: [[18, -98], [31, -80]] },
-  { id: 'north-sea', label: 'North Sea', type: 'Sea', bounds: [[51, -5], [62, 10]] },
-  { id: 'mediterranean', label: 'Mediterranean', type: 'Sea', bounds: [[30, -6], [46, 37]] },
-  { id: 'persian-gulf', label: 'Persian Gulf', type: 'Sea', bounds: [[23, 47], [31, 58]] },
-  { id: 'south-china-sea', label: 'South China Sea', type: 'Sea', bounds: [[-2, 103], [24, 122]] },
-  { id: 'malacca', label: 'Malacca Strait', type: 'Corridor', bounds: [[0, 95], [8, 105]] },
-  { id: 'hormuz', label: 'Strait of Hormuz', type: 'Corridor', bounds: [[24, 53], [28, 59]] },
-  { id: 'suez', label: 'Suez / Red Sea', type: 'Corridor', bounds: [[11, 31], [31, 44]] },
+  { id: 'global', label: 'Global', type: 'World', bounds: null, center: [10, 18], zoom: 1.5 },
+  { id: 'north-america', label: 'North America', type: 'Continent', bounds: [[5, -170], [75, -45]], center: [-108, 42], zoom: 2.6 },
+  { id: 'europe', label: 'Europe', type: 'Continent', bounds: [[34, -25], [72, 45]], center: [12, 53], zoom: 3.2 },
+  { id: 'asia', label: 'Asia', type: 'Continent', bounds: [[-10, 45], [72, 150]], center: [96, 32], zoom: 2.4 },
+  { id: 'africa', label: 'Africa', type: 'Continent', bounds: [[-36, -20], [38, 55]], center: [18, 3], zoom: 2.5 },
+  { id: 'south-america', label: 'South America', type: 'Continent', bounds: [[-56, -85], [14, -30]], center: [-60, -22], zoom: 2.8 },
+  { id: 'gulf-mexico', label: 'Gulf of Mexico', type: 'Sea', bounds: [[18, -98], [31, -80]], center: [-90.5, 26.3], zoom: 4.8 },
+  { id: 'north-sea', label: 'North Sea', type: 'Sea', bounds: [[51, -5], [62, 10]], center: [2.4, 56.6], zoom: 5.0 },
+  { id: 'mediterranean', label: 'Mediterranean', type: 'Sea', bounds: [[30, -6], [46, 37]], center: [16, 37], zoom: 3.7 },
+  { id: 'persian-gulf', label: 'Persian Gulf', type: 'Sea', bounds: [[23, 47], [31, 58]], center: [52.5, 26.7], zoom: 5.2 },
+  { id: 'south-china-sea', label: 'South China Sea', type: 'Sea', bounds: [[-2, 103], [24, 122]], center: [113.5, 11.5], zoom: 4.0 },
+  { id: 'malacca', label: 'Malacca Strait', type: 'Corridor', bounds: [[0, 95], [8, 105]], center: [101.2, 3.2], zoom: 5.7 },
+  { id: 'hormuz', label: 'Strait of Hormuz', type: 'Corridor', bounds: [[24, 53], [28, 59]], center: [56.0, 26.2], zoom: 6.0 },
+  { id: 'suez', label: 'Suez / Red Sea', type: 'Corridor', bounds: [[11, 31], [31, 44]], center: [37.4, 22.6], zoom: 4.2 },
 ];
 
 const SEVERITY_FILTERS = [
@@ -57,67 +83,43 @@ const SEVERITY_FILTERS = [
   { id: 'critical', label: 'Critical', min: 0.9 },
 ];
 
+const TIME_WINDOWS = [
+  { id: 'all', label: 'All years', years: null },
+  { id: '15y', label: '15 years', years: 15 },
+  { id: '8y', label: '8 years', years: 8 },
+  { id: '3y', label: '3 years', years: 3 },
+];
+
 const OIL_TYPES = {
   all: {
     label: 'All oil-like signals',
     marker: '#f97316',
-    gradient: {
-      0.16: '#22d3ee',
-      0.32: '#84cc16',
-      0.5: '#facc15',
-      0.68: '#f97316',
-      0.84: '#dc2626',
-      1.0: '#050505',
-    },
-    legend: ['cyan/green context', 'amber reported intensity', 'black critical severity'],
+    gradient: ['#19d4ff', '#6ee7b7', '#facc15', '#f97316', '#b91c1c', '#090909'],
+    legend: ['Clean watch', 'Possible sheen', 'Dense slick', 'Critical dark oil'],
   },
   crude: {
     label: 'Crude / petroleum',
     marker: '#f97316',
-    gradient: {
-      0.18: '#fde68a',
-      0.38: '#f59e0b',
-      0.58: '#c2410c',
-      0.78: '#7f1d1d',
-      1.0: '#050505',
-    },
-    legend: ['amber sheen', 'red dense release', 'black severe heavy oil'],
+    gradient: ['#fde68a', '#f59e0b', '#c2410c', '#7f1d1d', '#090909'],
+    legend: ['Amber sheen', 'Heavy crude', 'Dark concentration'],
   },
   refined: {
     label: 'Diesel / refined fuel',
     marker: '#38bdf8',
-    gradient: {
-      0.18: '#67e8f9',
-      0.4: '#0ea5e9',
-      0.62: '#2563eb',
-      0.82: '#7c3aed',
-      1.0: '#1e1b4b',
-    },
-    legend: ['cyan light sheen', 'blue refined fuel', 'violet concentrated signal'],
+    gradient: ['#67e8f9', '#0ea5e9', '#2563eb', '#7c3aed', '#1e1b4b'],
+    legend: ['Light cyan sheen', 'Blue fuel trace', 'Violet concentration'],
   },
   unknown: {
     label: 'Unknown oil-like anomaly',
     marker: '#facc15',
-    gradient: {
-      0.18: '#bef264',
-      0.38: '#facc15',
-      0.6: '#fb923c',
-      0.8: '#ef4444',
-      1.0: '#3f0a0a',
-    },
-    legend: ['green/yellow possible sheen', 'orange uncertain zone', 'dark red severe anomaly'],
+    gradient: ['#bef264', '#facc15', '#fb923c', '#ef4444', '#3f0a0a'],
+    legend: ['Uncertain trace', 'Possible anomaly', 'Severe anomaly'],
   },
   context: {
     label: 'Maritime risk context',
     marker: '#2dd4bf',
-    gradient: {
-      0.2: '#2dd4bf',
-      0.42: '#14b8a6',
-      0.62: '#f59e0b',
-      0.82: '#ea580c',
-      1.0: '#111827',
-    },
-    legend: ['teal corridor context', 'amber oil transit pressure', 'dark concentrated context'],
+    gradient: ['#2dd4bf', '#14b8a6', '#f59e0b', '#ea580c', '#111827'],
+    legend: ['Transit pressure', 'Offshore context', 'Dense corridor'],
   },
 };
 
@@ -252,22 +254,10 @@ function classifyOilType(point) {
 }
 
 function severityColor(score, oilType = 'all') {
-  if (score >= 0.9) return '#08090A';
+  if (score >= 0.9) return '#08090a';
   if (score >= 0.7) return oilType === 'refined' ? '#7c3aed' : '#7f1d1d';
   if (score >= 0.45) return oilType === 'refined' ? '#0ea5e9' : '#f97316';
   return OIL_TYPES[oilType]?.marker ?? '#facc15';
-}
-
-function markerRadius(score) {
-  return Math.max(5, Math.min(18, 5 + score * 14));
-}
-
-function gibsUrl(date) {
-  return `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`;
-}
-
-function esriWorldImageryUrl() {
-  return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 }
 
 function formatGallons(value) {
@@ -275,53 +265,434 @@ function formatGallons(value) {
   return `${Number(value).toLocaleString()} gal max potential`;
 }
 
-function FocusMap({ incident, geography }) {
-  const map = useMap();
-  useEffect(() => {
-    if (incident) {
-      map.flyTo([incident.lat, incident.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
-      return;
-    }
-    if (geography?.bounds) {
-      map.fitBounds(geography.bounds, { padding: [24, 24], duration: 0.7 });
-    }
-  }, [geography, incident, map]);
-  return null;
+function formatPercent(value) {
+  return `${Math.round(value * 100)}%`;
 }
 
-function HeatSurfaceLayer({ gradient, incidents, pulseKey }) {
-  const map = useMap();
+function buildTileStyle(basemap = 'standard') {
+  return {
+    version: 8,
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+    sources: {
+      standard: {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: 'OpenStreetMap contributors',
+      },
+      satellite: {
+        type: 'raster',
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: 'Esri World Imagery',
+      },
+    },
+    layers: [
+      {
+        id: 'standard-base',
+        type: 'raster',
+        source: 'standard',
+        layout: { visibility: basemap === 'standard' ? 'visible' : 'none' },
+        paint: { 'raster-saturation': -0.65, 'raster-contrast': 0.18, 'raster-brightness-max': 0.72 },
+      },
+      {
+        id: 'satellite-base',
+        type: 'raster',
+        source: 'satellite',
+        layout: { visibility: basemap === 'satellite' ? 'visible' : 'none' },
+        paint: { 'raster-saturation': 0.1, 'raster-contrast': 0.08, 'raster-brightness-min': 0.02 },
+      },
+    ],
+  };
+}
 
-  useEffect(() => {
-    const sparseRegion = incidents.length > 0 && incidents.length < 12;
-    const points = incidents.map((incident) => [
-      incident.lat,
-      incident.lon,
-      Math.max(sparseRegion ? 0.48 : 0.22, incident.severity_score),
+function gradientExpression(oil) {
+  const stops = oil.gradient;
+  const step = stops.length > 1 ? 1 / (stops.length - 1) : 1;
+  return [
+    'interpolate',
+    ['linear'],
+    ['heatmap-density'],
+    ...stops.flatMap((color, index) => [Number((index * step).toFixed(2)), color]),
+  ];
+}
+
+function toPointCollection(points) {
+  return {
+    type: 'FeatureCollection',
+    features: points.map((point) => {
+      const oilType = classifyOilType(point);
+      return {
+        type: 'Feature',
+        id: point.id,
+        geometry: {
+          type: 'Point',
+          coordinates: [point.lon, point.lat],
+        },
+        properties: {
+          id: point.id,
+          name: point.name,
+          location: point.location,
+          oilType,
+          isContext: point.record_type === 'context_anchor',
+          severity: Number(point.severity_score ?? 0),
+          color: severityColor(Number(point.severity_score ?? 0), oilType),
+          label: point.severity_label,
+        },
+      };
+    }),
+  };
+}
+
+function toZoneCollection(points) {
+  return {
+    type: 'FeatureCollection',
+    features: points.map((point) => {
+      const oilType = classifyOilType(point);
+      const severity = Number(point.severity_score ?? 0);
+      return {
+        type: 'Feature',
+        id: `zone-${point.id}`,
+        geometry: {
+          type: 'Polygon',
+          coordinates: [makeEllipse(point.lon, point.lat, severity)],
+        },
+        properties: {
+          id: point.id,
+          name: point.name,
+          oilType,
+          severity,
+          color: severityColor(severity, oilType),
+          isContext: point.record_type === 'context_anchor',
+        },
+      };
+    }),
+  };
+}
+
+function makeEllipse(lon, lat, severity) {
+  const points = [];
+  const radiusLon = 0.48 + severity * 1.15;
+  const radiusLat = 0.3 + severity * 0.82;
+  for (let i = 0; i <= 48; i += 1) {
+    const angle = (i / 48) * Math.PI * 2;
+    const warp = 1 + Math.sin(angle * 3 + severity * 4) * 0.12;
+    points.push([
+      lon + Math.cos(angle) * radiusLon * warp,
+      lat + Math.sin(angle) * radiusLat * warp,
     ]);
-    const layer = L.heatLayer(points, {
-      radius: sparseRegion ? 58 : 36,
-      blur: sparseRegion ? 34 : 30,
-      maxZoom: 7,
-      max: 1,
-      minOpacity: sparseRegion ? 0.34 : 0.2,
-      gradient,
-    });
-    layer.addTo(map);
-    const canvas = layer._canvas;
-    if (canvas) {
-      canvas.classList.remove('heat-bloom');
-      window.requestAnimationFrame(() => canvas.classList.add('heat-bloom'));
-    }
-    return () => {
-      layer.remove();
-    };
-  }, [gradient, incidents, map, pulseKey]);
-
-  return null;
+  }
+  return points;
 }
 
-export default function GlobalMap() {
+function setLayerVisibility(map, id, visible) {
+  if (!map.getLayer(id)) return;
+  map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+}
+
+function setBasemap(map, basemap) {
+  setLayerVisibility(map, 'standard-base', basemap === 'standard');
+  setLayerVisibility(map, 'satellite-base', basemap === 'satellite');
+}
+
+function addPollutionLayers(map, oil) {
+  if (!map.getSource('pollution')) {
+    map.addSource('pollution', { type: 'geojson', data: toPointCollection([]) });
+  }
+  if (!map.getSource('zones')) {
+    map.addSource('zones', { type: 'geojson', data: toZoneCollection([]) });
+  }
+
+  map.addLayer({
+    id: 'zone-fills',
+    type: 'fill',
+    source: 'zones',
+    paint: {
+      'fill-color': ['get', 'color'],
+      'fill-opacity': [
+        'interpolate',
+        ['linear'],
+        ['get', 'severity'],
+        0.25,
+        0.08,
+        0.65,
+        0.2,
+        1,
+        0.38,
+      ],
+    },
+  });
+
+  map.addLayer({
+    id: 'zone-lines',
+    type: 'line',
+    source: 'zones',
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-opacity': 0.72,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.6, 7, 1.8],
+      'line-blur': 0.4,
+    },
+  });
+
+  map.addLayer({
+    id: 'pollution-heat',
+    type: 'heatmap',
+    source: 'pollution',
+    maxzoom: 10,
+    paint: {
+      'heatmap-weight': [
+        'interpolate',
+        ['linear'],
+        ['get', 'severity'],
+        0,
+        0.2,
+        0.55,
+        0.7,
+        1,
+        1.25,
+      ],
+      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 1, 1.5, 5, 2.1, 8, 2.8],
+      'heatmap-color': gradientExpression(oil),
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 1, 18, 4, 34, 7, 58],
+      'heatmap-opacity': 0.82,
+    },
+  });
+
+  map.addLayer({
+    id: 'pollution-circles',
+    type: 'circle',
+    source: 'pollution',
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-radius': ['interpolate', ['linear'], ['get', 'severity'], 0.2, 4, 1, 15],
+      'circle-opacity': ['case', ['get', 'isContext'], 0.18, 0.76],
+      'circle-stroke-color': 'rgba(241, 245, 249, 0.78)',
+      'circle-stroke-width': ['case', ['get', 'isContext'], 0.5, 1.2],
+      'circle-blur': ['case', ['get', 'isContext'], 0.45, 0],
+    },
+  });
+}
+
+function configureLayerMode(map, mode) {
+  setBasemap(map, MAP_VIEWS[mode].basemap);
+  setLayerVisibility(map, 'pollution-heat', mode === 'heatmap' || mode === 'satellite');
+  setLayerVisibility(map, 'zone-fills', mode === 'zones' || mode === 'satellite');
+  setLayerVisibility(map, 'zone-lines', mode === 'zones' || mode === 'satellite');
+  setLayerVisibility(map, 'pollution-circles', mode === 'standard' || mode === 'satellite' || mode === 'zones');
+
+  if (map.getLayer('pollution-heat')) {
+    map.setPaintProperty('pollution-heat', 'heatmap-opacity', mode === 'heatmap' ? 0.88 : 0.5);
+  }
+  if (map.getLayer('zone-fills')) {
+    map.setPaintProperty('zone-fills', 'fill-opacity', [
+      'interpolate',
+      ['linear'],
+      ['get', 'severity'],
+      0.25,
+      mode === 'zones' ? 0.1 : 0.04,
+      0.65,
+      mode === 'zones' ? 0.28 : 0.16,
+      1,
+      mode === 'zones' ? 0.48 : 0.28,
+    ]);
+  }
+}
+
+function flyToGeography(map, geography) {
+  if (geography.bounds) {
+    const [[south, west], [north, east]] = geography.bounds;
+    map.fitBounds(
+      [
+        [west, south],
+        [east, north],
+      ],
+      { padding: 56, duration: 780, maxZoom: geography.zoom + 0.8 },
+    );
+    return;
+  }
+  map.flyTo({ center: geography.center, zoom: geography.zoom, duration: 780 });
+}
+
+function WebGLPollutionMap({
+  geography,
+  mapMode,
+  oil,
+  points,
+  selected,
+  setMapMode,
+  setSelected,
+}) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const popupRef = useRef(null);
+  const pointsRef = useRef(new Map());
+
+  useEffect(() => {
+    pointsRef.current = new Map(points.map((point) => [String(point.id), point]));
+  }, [points]);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return undefined;
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: buildTileStyle(MAP_VIEWS[mapMode].basemap),
+      center: GEOGRAPHY_FILTERS[0].center,
+      zoom: GEOGRAPHY_FILTERS[0].zoom,
+      attributionControl: false,
+      renderWorldCopies: true,
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+    mapRef.current = map;
+
+    map.on('load', () => {
+      addPollutionLayers(map, oil);
+      configureLayerMode(map, mapMode);
+      map.getSource('pollution').setData(toPointCollection(points));
+      map.getSource('zones').setData(toZoneCollection(points));
+      flyToGeography(map, geography);
+    });
+
+    map.on('click', 'pollution-circles', (event) => {
+      const feature = event.features?.[0];
+      const id = String(feature?.properties?.id ?? '');
+      const point = pointsRef.current.get(id);
+      if (point) setSelected(point);
+    });
+
+    map.on('click', 'zone-fills', (event) => {
+      const feature = event.features?.[0];
+      const id = String(feature?.properties?.id ?? '');
+      const point = pointsRef.current.get(id);
+      if (point) setSelected(point);
+    });
+
+    map.on('mouseenter', 'pollution-circles', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'pollution-circles', () => {
+      map.getCanvas().style.cursor = '';
+      popupRef.current?.remove();
+    });
+    map.on('mousemove', 'pollution-circles', (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
+      const point = pointsRef.current.get(String(feature.properties?.id ?? ''));
+      if (!point) return;
+      popupRef.current?.remove();
+      popupRef.current = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        className: 'ow-map-tooltip',
+        offset: 14,
+      })
+        .setLngLat(event.lngLat)
+        .setHTML(
+          `<strong>${point.name}</strong><span>${formatPercent(point.severity_score)} ${point.severity_label}</span>`,
+        )
+        .addTo(map);
+    });
+
+    return () => {
+      popupRef.current?.remove();
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    if (map.getSource('pollution')) {
+      map.getSource('pollution').setData(toPointCollection(points));
+    }
+    if (map.getSource('zones')) {
+      map.getSource('zones').setData(toZoneCollection(points));
+    }
+  }, [points]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    configureLayerMode(map, mapMode);
+  }, [mapMode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    if (map.getLayer('pollution-heat')) {
+      map.setPaintProperty('pollution-heat', 'heatmap-color', gradientExpression(oil));
+    }
+  }, [oil]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    flyToGeography(map, geography);
+  }, [geography]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selected) return;
+    map.flyTo({ center: [selected.lon, selected.lat], zoom: Math.max(map.getZoom(), 5.6), duration: 650 });
+  }, [selected]);
+
+  return (
+    <div className="relative h-full min-h-[520px] overflow-hidden rounded-[1.4rem] border border-slate-700/70 bg-slate-950 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+      <div ref={containerRef} className="h-full w-full" />
+      {(mapMode === 'heatmap' || mapMode === 'zones') && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <span className="pollution-cloud cloud-a" />
+          <span className="pollution-cloud cloud-b" />
+          <span className="pollution-cloud cloud-c" />
+        </div>
+      )}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-slate-950/72 to-transparent" />
+
+      <div className="absolute left-14 right-4 top-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="map-glass max-w-[410px] px-4 py-3">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-cyan-100/70">
+            <RadioTower size={13} />
+            WebGL environmental intelligence
+          </div>
+          <p className="mt-2 text-lg font-semibold leading-tight text-slate-50">
+            Possible oil-like anomaly surface
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-slate-300/80">
+            MapLibre GL heat, area, and density layers render in the browser GPU. Context zones are decision-support signals, not confirmed detections.
+          </p>
+        </div>
+
+        <div className="map-glass flex flex-wrap gap-1 p-1.5">
+          {Object.entries(MAP_VIEWS).map(([id, item]) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={id}
+                onClick={() => setMapMode(id)}
+                className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-xs font-semibold transition duration-200 ${
+                  mapMode === id
+                    ? 'bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(103,232,249,0.32)]'
+                    : 'text-slate-300 hover:bg-slate-800/90 hover:text-slate-50'
+                }`}
+                title={item.description}
+              >
+                <Icon size={15} />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <IntensityLegend oil={oil} points={points} />
+    </div>
+  );
+}
+
+export default function GlobalMap({ onGenerateReport }) {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
@@ -329,44 +700,37 @@ export default function GlobalMap() {
   const [selected, setSelected] = useState(null);
   const [startDate, setStartDate] = useState(DEFAULT_START);
   const [endDate, setEndDate] = useState(DEFAULT_END);
-  const [viewDate, setViewDate] = useState(DEFAULT_END);
   const [query, setQuery] = useState('');
-  const [mapMode, setMapMode] = useState(MAP_MODE_POINTS);
+  const [mapMode, setMapMode] = useState('heatmap');
   const [geographyId, setGeographyId] = useState('global');
   const [severityId, setSeverityId] = useState('all');
   const [oilType, setOilType] = useState('all');
   const [recordType, setRecordType] = useState('all');
+  const [timeWindow, setTimeWindow] = useState('all');
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [activePanel, setActivePanel] = useState('overview');
-  const [pulseKey, setPulseKey] = useState(0);
+  const [activePanel, setActivePanel] = useState('insights');
+  const [loadedAt, setLoadedAt] = useState(null);
 
   const selectedGeography = GEOGRAPHY_FILTERS.find((item) => item.id === geographyId) ?? GEOGRAPHY_FILTERS[0];
   const selectedSeverity = SEVERITY_FILTERS.find((item) => item.id === severityId) ?? SEVERITY_FILTERS[0];
   const selectedOil = OIL_TYPES[oilType] ?? OIL_TYPES.all;
+  const selectedWindow = TIME_WINDOWS.find((item) => item.id === timeWindow) ?? TIME_WINDOWS[0];
 
   const loadIncidents = useCallback(async () => {
     setStatus('loading');
     setError('');
     try {
-      const data = await fetchNoaaIncidents({
-        threat: 'Oil',
-        limit: 2000,
-        startDate,
-        endDate,
-      });
-      const surface = await fetchOceanRiskSurface({
-        threat: 'Oil',
-        limit: 2000,
-        startDate,
-        endDate,
-      });
+      const [data, surface] = await Promise.all([
+        fetchNoaaIncidents({ threat: 'Oil', limit: 2400, startDate, endDate }),
+        fetchOceanRiskSurface({ threat: 'Oil', limit: 2400, startDate, endDate }),
+      ]);
       setPayload(data);
       setSurfacePayload(surface);
       setSelected(data.incidents?.[0] ?? null);
-      setPulseKey((key) => key + 1);
+      setLoadedAt(new Date());
       setStatus('success');
     } catch (err) {
-      setError(err.message ?? 'Failed to load NOAA incident feed');
+      setError(err.message ?? 'Failed to load official incident feed');
       setStatus('error');
     }
   }, [startDate, endDate]);
@@ -388,10 +752,6 @@ export default function GlobalMap() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  useEffect(() => {
-    setPulseKey((key) => key + 1);
-  }, [geographyId, mapMode, oilType, query, recordType, severityId]);
-
   const incidents = payload?.incidents ?? [];
   const surfacePoints = useMemo(
     () => [...(surfacePayload?.surface_points ?? incidents), ...OCEAN_CONTEXT_SUPPLEMENTS],
@@ -400,6 +760,9 @@ export default function GlobalMap() {
 
   const filteredIncidents = useMemo(() => {
     const needle = query.trim().toLowerCase();
+    const cutoff = selectedWindow.years
+      ? new Date(new Date().setFullYear(new Date().getFullYear() - selectedWindow.years)).toISOString().slice(0, 10)
+      : null;
     return incidents.filter((incident) => {
       const incidentOilType = classifyOilType(incident);
       const text = [incident.name, incident.location, incident.commodity, incident.tags]
@@ -408,12 +771,13 @@ export default function GlobalMap() {
       return (
         isMarineRelevant(incident) &&
         (!needle || text.includes(needle)) &&
+        (!cutoff || incident.open_date >= cutoff) &&
         inBounds(incident, selectedGeography.bounds) &&
         incident.severity_score >= selectedSeverity.min &&
         (oilType === 'all' || incidentOilType === oilType)
       );
     });
-  }, [incidents, oilType, query, selectedGeography.bounds, selectedSeverity.min]);
+  }, [incidents, oilType, query, selectedGeography.bounds, selectedSeverity.min, selectedWindow.years]);
 
   const filteredSurface = useMemo(() => {
     const incidentIds = new Set(filteredIncidents.map((incident) => incident.id));
@@ -440,346 +804,340 @@ export default function GlobalMap() {
     surfacePoints,
   ]);
 
-  const criticalCount = filteredIncidents.filter((incident) => incident.severity_score >= 0.9).length;
-  const highCount = filteredIncidents.filter((incident) => incident.severity_score >= 0.7).length;
-  const contextCount = filteredSurface.filter((point) => point.record_type === 'context_anchor').length;
-  const reportedSurfaceCount = filteredSurface.length - contextCount;
-  const apiContextCount = surfacePayload?.context_anchor_count ?? 0;
-  const rankedZones = useMemo(
-    () => rankZones(filteredSurface),
-    [filteredSurface],
-  );
+  const stats = useMemo(() => computeStats(filteredIncidents, filteredSurface), [filteredIncidents, filteredSurface]);
+  const trends = useMemo(() => buildTrend(filteredIncidents), [filteredIncidents]);
+  const rankedZones = useMemo(() => rankZones(filteredSurface), [filteredSurface]);
+  const forecasts = useMemo(() => buildForecasts(stats, rankedZones), [rankedZones, stats]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const selectedStillVisible = filteredSurface.some((point) => point.id === selected.id);
+    if (!selectedStillVisible) setSelected(null);
+  }, [filteredSurface, selected]);
 
   function showRegion(regionId) {
     setGeographyId(regionId);
-    setMapMode(MAP_MODE_HEAT);
+    setMapMode('heatmap');
     setRecordType('all');
     setSeverityId('all');
     setOilType('all');
     setSelected(null);
   }
-
-  const commands = [
-    { label: 'Switch to Satellite Heat', action: () => setMapMode(MAP_MODE_HEAT), hint: 'surface' },
-    { label: 'Switch to Map', action: () => setMapMode(MAP_MODE_POINTS), hint: 'markers' },
-    { label: 'Show critical only', action: () => setSeverityId('critical'), hint: 'filter' },
-    { label: 'Show Gulf of Mexico', action: () => showRegion('gulf-mexico'), hint: 'region' },
-    { label: 'Show North Sea', action: () => showRegion('north-sea'), hint: 'region' },
-    { label: 'Show Malacca Strait', action: () => showRegion('malacca'), hint: 'corridor' },
-    { label: 'Show analyst plan', action: () => setActivePanel('plan'), hint: 'copilot' },
-    { label: 'Reset filters', action: resetFilters, hint: 'clear' },
-  ];
 
   function resetFilters() {
     setGeographyId('global');
     setSeverityId('all');
     setOilType('all');
     setRecordType('all');
+    setTimeWindow('all');
     setQuery('');
     setSelected(null);
   }
 
-  return (
-    <div className="relative flex h-full min-h-0 flex-col gap-3">
-      <section className="panel flex min-h-0 flex-1 flex-col overflow-hidden xl:flex-row">
-        <div className="flex min-h-[48%] flex-1 min-w-0 flex-col xl:min-h-0">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ocean-700 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-100">OceanWatch Mission Control</h2>
-              <p className="text-xs text-slate-500">
-                Reported records, maritime risk context, and satellite heat intelligence.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex rounded-md border border-ocean-600 bg-ocean-900 p-1">
-                <ModeButton
-                  active={mapMode === MAP_MODE_POINTS}
-                  icon={<Map size={13} />}
-                  label="Map"
-                  onClick={() => setMapMode(MAP_MODE_POINTS)}
-                />
-                <ModeButton
-                  active={mapMode === MAP_MODE_HEAT}
-                  icon={<Flame size={13} />}
-                  label="Satellite Heat"
-                  onClick={() => setMapMode(MAP_MODE_HEAT)}
-                />
-              </div>
-              <button onClick={() => setPaletteOpen(true)} className="btn-ghost text-xs">
-                <Command size={13} /> K
-              </button>
-              <button onClick={loadIncidents} className="btn-ghost text-xs" disabled={status === 'loading'}>
-                <RefreshCcw size={13} /> Refresh
-              </button>
-            </div>
-          </div>
+  const commands = [
+    { label: 'Switch to Heatmap', action: () => setMapMode('heatmap'), hint: 'gpu layer' },
+    { label: 'Switch to Pollution Zones', action: () => setMapMode('zones'), hint: 'area layer' },
+    { label: 'Switch to Satellite', action: () => setMapMode('satellite'), hint: 'imagery' },
+    { label: 'Show critical only', action: () => setSeverityId('critical'), hint: 'filter' },
+    { label: 'Show Gulf of Mexico', action: () => showRegion('gulf-mexico'), hint: 'region' },
+    { label: 'Show North Sea', action: () => showRegion('north-sea'), hint: 'region' },
+    { label: 'Show Malacca Strait', action: () => showRegion('malacca'), hint: 'corridor' },
+    { label: 'Reset filters', action: resetFilters, hint: 'clear' },
+  ];
 
-          <FilterBar
-            endDate={endDate}
-            geographyId={geographyId}
-            oilType={oilType}
-            query={query}
-            recordType={recordType}
-            severityId={severityId}
-            setEndDate={setEndDate}
-            setGeographyId={setGeographyId}
-            setOilType={setOilType}
-            setQuery={setQuery}
-            setRecordType={setRecordType}
-            setSeverityId={setSeverityId}
-            setStartDate={setStartDate}
-            setViewDate={setViewDate}
-            startDate={startDate}
-            viewDate={viewDate}
+  return (
+    <div className="mission-shell relative h-full min-h-0 overflow-hidden rounded-[1.6rem] border border-slate-700/70 bg-slate-950/80">
+      <div className="pointer-events-none absolute inset-0 mission-aura" />
+      <div className="relative flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 lg:p-5">
+        <MissionHeader
+          error={error}
+          filteredSurface={filteredSurface}
+          loadedAt={loadedAt}
+          onRefresh={loadIncidents}
+          onGenerateReport={onGenerateReport}
+          stats={stats}
+          status={status}
+        />
+
+        <FilterDeck
+          endDate={endDate}
+          geographyId={geographyId}
+          oilType={oilType}
+          query={query}
+          recordType={recordType}
+          setEndDate={setEndDate}
+          setGeographyId={setGeographyId}
+          setOilType={setOilType}
+          setQuery={setQuery}
+          setRecordType={setRecordType}
+          setSeverityId={setSeverityId}
+          setStartDate={setStartDate}
+          setTimeWindow={setTimeWindow}
+          severityId={severityId}
+          startDate={startDate}
+          timeWindow={timeWindow}
+        />
+
+        <section className="grid min-h-[760px] flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_410px]">
+          <WebGLPollutionMap
+            geography={selectedGeography}
+            mapMode={mapMode}
+            oil={selectedOil}
+            points={filteredSurface}
+            selected={selected}
+            setMapMode={setMapMode}
+            setSelected={setSelected}
           />
 
-          <div className="relative min-h-[360px] flex-1">
-            <MapContainer
-              center={[20, 0]}
-              zoom={2}
-              minZoom={2}
-              maxZoom={9}
-              className="h-full w-full"
-              worldCopyJump
-            >
-              {mapMode === MAP_MODE_POINTS ? (
-                <LayersControl position="topright">
-                  <LayersControl.BaseLayer checked name="OpenStreetMap">
-                    <TileLayer
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    />
-                  </LayersControl.BaseLayer>
-                  <LayersControl.Overlay name={`NASA GIBS imagery (${viewDate})`}>
-                    <TileLayer
-                      key={viewDate}
-                      url={gibsUrl(viewDate)}
-                      minZoom={1}
-                      maxZoom={9}
-                      opacity={0.62}
-                      attribution="Satellite imagery: NASA GIBS"
-                    />
-                  </LayersControl.Overlay>
-                </LayersControl>
-              ) : (
-                <>
-                  <TileLayer
-                    url={esriWorldImageryUrl()}
-                    maxZoom={19}
-                    opacity={0.9}
-                    attribution="Satellite imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community"
-                  />
-                  <HeatSurfaceLayer
-                    gradient={selectedOil.gradient}
-                    incidents={filteredSurface}
-                    pulseKey={pulseKey}
-                  />
-                  <DetailedLegend
-                    contextCount={contextCount}
-                    oil={selectedOil}
-                    reportedCount={reportedSurfaceCount}
-                    surfaceCount={filteredSurface.length}
-                  />
-                </>
+          <aside className="flex min-h-0 flex-col gap-3">
+            <PanelTabs activePanel={activePanel} setActivePanel={setActivePanel} />
+            <section className="min-h-0 flex-1 overflow-y-auto rounded-[1.25rem] border border-slate-700/70 bg-slate-950/72 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl">
+              {activePanel === 'insights' && (
+                <InsightsPanel
+                  forecasts={forecasts}
+                  rankedZones={rankedZones}
+                  selected={selected}
+                  setGeographyId={setGeographyId}
+                  setSelected={setSelected}
+                  stats={stats}
+                />
               )}
-              <FocusMap geography={selectedGeography} incident={selected} />
-              {mapMode === MAP_MODE_POINTS &&
-                filteredIncidents.map((incident) => {
-                  const incidentOilType = classifyOilType(incident);
-                  return (
-                    <CircleMarker
-                      key={incident.id}
-                      center={[incident.lat, incident.lon]}
-                      radius={markerRadius(incident.severity_score)}
-                      pathOptions={{
-                        color: '#F8FAFC',
-                        weight: selected?.id === incident.id ? 2 : 0.7,
-                        fillColor: severityColor(incident.severity_score, incidentOilType),
-                        fillOpacity: selected?.id === incident.id ? 0.92 : 0.72,
-                      }}
-                      eventHandlers={{
-                        click: () => setSelected(incident),
-                      }}
-                    >
-                      <Popup>
-                        <div className="space-y-1 text-slate-900">
-                          <strong>{incident.name}</strong>
-                          <div>{incident.open_date} | {incident.location}</div>
-                          <div>{incident.severity_label}</div>
-                          <div>{OIL_TYPES[incidentOilType]?.label}</div>
-                          <div>{formatGallons(incident.max_potential_release_gallons)}</div>
-                          <a href={incident.source_url} target="_blank" rel="noreferrer">
-                            NOAA incident record
-                          </a>
-                        </div>
-                      </Popup>
-                    </CircleMarker>
-                  );
-                })}
-            </MapContainer>
-          </div>
-        </div>
+              {activePanel === 'records' && (
+                <RecordsPanel incidents={filteredIncidents} setSelected={setSelected} />
+              )}
+              {activePanel === 'sources' && <SourcesPanel surfacePayload={surfacePayload} />}
+              {activePanel === 'copilot' && (
+                <CopilotPanel
+                  mapMode={mapMode}
+                  selectedGeography={selectedGeography}
+                  selectedOil={selectedOil}
+                  stats={stats}
+                  status={status}
+                />
+              )}
+            </section>
+          </aside>
+        </section>
 
-        <aside className="flex max-h-[44%] w-full flex-shrink-0 flex-col gap-3 border-t border-ocean-700 bg-ocean-900/70 p-3 xl:max-h-none xl:w-[390px] xl:border-l xl:border-t-0">
-          <div className="grid grid-cols-3 gap-2">
-          <MiniMetric label="Ocean Records" value={filteredIncidents.length} />
-            <MiniMetric label="High+" value={highCount} />
-            <MiniMetric label="Critical" value={criticalCount} />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <MiniMetric label="Surface" value={filteredSurface.length} />
-            <MiniMetric label="Context" value={contextCount} />
-          </div>
+        <AnalyticsGrid forecasts={forecasts} rankedZones={rankedZones} stats={stats} trends={trends} />
+      </div>
 
-          <PanelTabs activePanel={activePanel} setActivePanel={setActivePanel} />
-
-          <section className="panel min-h-0 flex-1 overflow-y-auto scrollable p-3">
-            {activePanel === 'overview' && (
-          <OverviewPanel
-                error={error}
-                payload={payload}
-                rankedZones={rankedZones}
-                selected={selected}
-                setGeographyId={setGeographyId}
-                status={status}
-                surfacePayload={surfacePayload}
-              />
-            )}
-            {activePanel === 'records' && (
-              <RecordsPanel incidents={filteredIncidents} setSelected={setSelected} />
-            )}
-            {activePanel === 'sources' && <SourcesPanel surfacePayload={surfacePayload} />}
-            {activePanel === 'plan' && (
-              <AnalystPlanPanel
-                contextCount={contextCount}
-                filteredSurfaceCount={filteredSurface.length}
-                mapMode={mapMode}
-                selectedGeography={selectedGeography}
-                selectedOil={selectedOil}
-                status={status}
-              />
-            )}
-          </section>
-        </aside>
-      </section>
-
-      <CommandPalette
-        commands={commands}
-        open={paletteOpen}
-        setOpen={setPaletteOpen}
-      />
+      <CommandPalette commands={commands} open={paletteOpen} setOpen={setPaletteOpen} />
     </div>
   );
 }
 
-function FilterBar(props) {
+function MissionHeader({ error, filteredSurface, loadedAt, onGenerateReport, onRefresh, stats, status }) {
   return (
-    <div className="flex min-h-[76px] items-end gap-2 overflow-x-auto overflow-y-hidden border-b border-ocean-700 bg-ocean-950/60 px-3 py-2">
-      <SelectField label="Geography" value={props.geographyId} onChange={props.setGeographyId}>
-        {GEOGRAPHY_FILTERS.map((item) => (
-          <option key={item.id} value={item.id}>{item.label} ({item.type})</option>
-        ))}
-      </SelectField>
-      <SelectField label="Severity" value={props.severityId} onChange={props.setSeverityId}>
-        {SEVERITY_FILTERS.map((item) => (
-          <option key={item.id} value={item.id}>{item.label}</option>
-        ))}
-      </SelectField>
-      <SelectField label="Oil signal" value={props.oilType} onChange={props.setOilType}>
-        {Object.entries(OIL_TYPES).map(([id, item]) => (
-          <option key={id} value={id}>{item.label}</option>
-        ))}
-      </SelectField>
-      <SelectField label="Record type" value={props.recordType} onChange={props.setRecordType}>
-        <option value="all">Reported + context</option>
-        <option value="reported">Reported incidents</option>
-        <option value="context">Context zones</option>
-      </SelectField>
-      <label className="block w-[160px] flex-shrink-0">
-        <span className="label">Satellite date</span>
-        <input
-          className="input-field h-9 py-1.5"
-          type="date"
-          value={props.viewDate}
-          onChange={(event) => props.setViewDate(event.target.value)}
-        />
-      </label>
-      <label className="relative block w-[230px] flex-shrink-0">
-        <span className="label">Search</span>
-        <Search size={14} className="pointer-events-none absolute left-3 top-[31px] text-slate-500" />
-        <input
-          className="input-field h-9 py-1.5 pl-9"
-          value={props.query}
-          onChange={(event) => props.setQuery(event.target.value)}
-          placeholder="country, sea, commodity"
-        />
-      </label>
-      <label className="block w-[160px] flex-shrink-0">
-        <span className="label">Incident start</span>
-        <input
-          className="input-field h-9 py-1.5"
-          type="date"
-          value={props.startDate}
-          onChange={(event) => props.setStartDate(event.target.value)}
-        />
-      </label>
-      <label className="block w-[160px] flex-shrink-0">
-        <span className="label">Incident end</span>
-        <input
-          className="input-field h-9 py-1.5"
-          type="date"
-          value={props.endDate}
-          onChange={(event) => props.setEndDate(event.target.value)}
-        />
-      </label>
-    </div>
+    <header className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+      <div>
+        <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+          <Sparkles size={13} />
+          AI environmental intelligence
+        </div>
+        <h2 className="mt-3 max-w-4xl text-2xl font-semibold leading-tight text-slate-50 sm:text-3xl lg:text-[2.35rem]">
+          Global marine pollution analytics, rendered as a live risk surface.
+        </h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-[15px]">
+          OceanWatch blends official incident records with maritime oil-risk context, WebGL heat layers, zone overlays, and uncertainty-aware AI triage language.
+        </p>
+        {error && <p className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p>}
+      </div>
+
+      <div className="hidden grid-cols-2 gap-2 rounded-[1.25rem] border border-slate-700/70 bg-slate-900/64 p-2.5 backdrop-blur-xl sm:grid sm:min-w-[320px] sm:gap-3 sm:p-3">
+        <StatusPill status={status} />
+        <button onClick={onGenerateReport} className="premium-button justify-center">
+          <FileText size={15} />
+          Generate report
+        </button>
+        <button onClick={onRefresh} className="premium-button justify-center">
+          <RefreshCcw size={15} />
+          Refresh feed
+        </button>
+        <QuickReadout label="Visible inputs" value={filteredSurface.length} />
+        <QuickReadout label="Avg severity" value={formatPercent(stats.averageSeverity)} />
+        <QuickReadout label="High zones" value={stats.highCount} />
+        <QuickReadout label="Last sync" value={loadedAt ? loadedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'pending'} />
+      </div>
+    </header>
+  );
+}
+
+function AnalyticsGrid({ forecasts, rankedZones, stats, trends }) {
+  return (
+    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <MetricPanel
+        icon={Gauge}
+        label="Average pollution pressure"
+        value={formatPercent(stats.averageSeverity)}
+        tone="cyan"
+        detail={`${stats.surfaceCount} blended map inputs`}
+      >
+        <SeverityBars distribution={stats.distribution} />
+      </MetricPanel>
+      <MetricPanel
+        icon={Activity}
+        label="Pollution trend"
+        value={stats.trendLabel}
+        tone="emerald"
+        detail="Reported marine record history"
+      >
+        <TrendChart data={trends} />
+      </MetricPanel>
+      <MetricPanel
+        icon={LocateFixed}
+        label="Highest-risk zone"
+        value={rankedZones[0]?.label ?? 'No zone'}
+        tone="amber"
+        detail={`${rankedZones[0]?.count ?? 0} visible inputs`}
+      >
+        <ZoneSpark zones={rankedZones.slice(0, 5)} />
+      </MetricPanel>
+      <MetricPanel
+        icon={Bot}
+        label="AI forecast"
+        value={forecasts[0]?.title ?? 'Forecast pending'}
+        tone="violet"
+        detail={forecasts[0]?.body ?? 'Waiting for feed'}
+      >
+        <ForecastNeedle value={forecasts[0]?.score ?? 0} />
+      </MetricPanel>
+    </section>
+  );
+}
+
+function MetricPanel({ children, detail, icon: Icon, label, tone, value }) {
+  return (
+    <article className={`analytics-card tone-${tone}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
+          <p className="mt-2 text-xl font-semibold leading-tight text-slate-50">{value}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-400">{detail}</p>
+        </div>
+        <div className="analytics-icon">
+          <Icon size={18} />
+        </div>
+      </div>
+      <div className="mt-4">{children}</div>
+    </article>
+  );
+}
+
+function FilterDeck(props) {
+  return (
+    <section className="rounded-[1.25rem] border border-slate-700/70 bg-slate-950/68 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <Filter size={14} />
+          Intelligence filters
+        </div>
+        <div className="hidden items-center gap-2 text-xs text-slate-500 md:flex">
+          <Command size={13} />
+          Press K for commands
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-8">
+        <SelectField label="Geography" value={props.geographyId} onChange={props.setGeographyId}>
+          {GEOGRAPHY_FILTERS.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label} ({item.type})
+            </option>
+          ))}
+        </SelectField>
+        <SelectField label="Severity" value={props.severityId} onChange={props.setSeverityId}>
+          {SEVERITY_FILTERS.map((item) => (
+            <option key={item.id} value={item.id}>{item.label}</option>
+          ))}
+        </SelectField>
+        <SelectField label="Oil signal" value={props.oilType} onChange={props.setOilType}>
+          {Object.entries(OIL_TYPES).map(([id, item]) => (
+            <option key={id} value={id}>{item.label}</option>
+          ))}
+        </SelectField>
+        <SelectField label="Record type" value={props.recordType} onChange={props.setRecordType}>
+          <option value="all">Reported + context</option>
+          <option value="reported">Reported incidents</option>
+          <option value="context">Context zones</option>
+        </SelectField>
+        <SelectField label="History" value={props.timeWindow} onChange={props.setTimeWindow}>
+          {TIME_WINDOWS.map((item) => (
+            <option key={item.id} value={item.id}>{item.label}</option>
+          ))}
+        </SelectField>
+        <DateField label="Start" value={props.startDate} onChange={props.setStartDate} />
+        <DateField label="End" value={props.endDate} onChange={props.setEndDate} />
+        <label className="block sm:col-span-2 xl:col-span-1">
+          <span className="label">Search</span>
+          <span className="relative block">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              className="input-field h-11 rounded-xl border-slate-700/90 bg-slate-950/70 pl-9"
+              value={props.query}
+              onChange={(event) => props.setQuery(event.target.value)}
+              placeholder="sea, port, fuel"
+            />
+          </span>
+        </label>
+      </div>
+    </section>
   );
 }
 
 function SelectField({ children, label, onChange, value }) {
   return (
-    <label className="block w-[190px] flex-shrink-0">
+    <label className="block min-w-0">
       <span className="label">{label}</span>
-      <select className="input-field h-9 py-1.5" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select
+        className="input-field h-11 rounded-xl border-slate-700/90 bg-slate-950/70"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
         {children}
       </select>
     </label>
   );
 }
 
-function DetailedLegend({ contextCount, oil, reportedCount, surfaceCount }) {
+function DateField({ label, onChange, value }) {
   return (
-    <div className="leaflet-bottom leaflet-left pointer-events-none">
-                  <div className="mission-legend heat-bloom m-3 w-[330px] rounded-lg border border-ocean-600 p-3 shadow-ocean">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-slate-400">Pollution severity surface</p>
-            <p className="mt-1 text-xs font-semibold text-slate-100">{oil.label}</p>
-          </div>
-      <span className="rounded bg-ocean-700 px-2 py-1 text-[10px] text-cyan-bright">
-        {surfaceCount} inputs
-      </span>
+    <label className="block min-w-0">
+      <span className="label">{label}</span>
+      <input
+        className="input-field h-11 rounded-xl border-slate-700/90 bg-slate-950/70"
+        type="date"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function IntensityLegend({ oil, points }) {
+  const reportedCount = points.filter((point) => point.record_type !== 'context_anchor').length;
+  const contextCount = points.length - reportedCount;
+  return (
+    <div className="map-glass absolute bottom-4 left-4 w-[min(390px,calc(100%-2rem))] p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">Pollution intensity legend</p>
+          <p className="mt-1 text-sm font-semibold text-slate-50">{oil.label}</p>
         </div>
-        <div
-          className="mt-3 h-2 rounded-full"
-          style={{
-            background:
-              'linear-gradient(90deg, ' +
-              Object.values(oil.gradient).join(', ') +
-              ')',
-          }}
-        />
-        <div className="mt-1 flex justify-between text-[10px] text-slate-500">
-          <span>lower</span>
-          <span>critical</span>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-400">
-          <LegendSwatch color={oil.marker} label={`${reportedCount} reported records`} />
-          <LegendSwatch color="#2dd4bf" label={`${contextCount} context zones`} />
-          {oil.legend.map((item) => (
-            <LegendSwatch key={item} color="#64748b" label={item} />
-          ))}
-        </div>
+        <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-100">
+          {points.length} inputs
+        </span>
+      </div>
+      <div className="mt-3 h-2 rounded-full shadow-[0_0_24px_rgba(248,113,113,0.2)]" style={{ background: `linear-gradient(90deg, ${oil.gradient.join(', ')})` }} />
+      <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+        <span>lower</span>
+        <span>critical</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+        <LegendSwatch color={oil.marker} label={`${reportedCount} reported records`} />
+        <LegendSwatch color="#2dd4bf" label={`${contextCount} context zones`} />
+        {oil.legend.map((item, index) => (
+          <LegendSwatch key={item} color={oil.gradient[index + 1] ?? oil.marker} label={item} />
+        ))}
       </div>
     </div>
   );
@@ -788,7 +1146,7 @@ function DetailedLegend({ contextCount, oil, reportedCount, surfaceCount }) {
 function LegendSwatch({ color, label }) {
   return (
     <span className="flex items-center gap-2">
-      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+      <span className="h-2.5 w-2.5 rounded-full border border-slate-200/30" style={{ backgroundColor: color }} />
       {label}
     </span>
   );
@@ -796,61 +1154,85 @@ function LegendSwatch({ color, label }) {
 
 function PanelTabs({ activePanel, setActivePanel }) {
   const tabs = [
-    ['overview', 'Overview', Radar],
-    ['records', 'Records', Layers],
+    ['insights', 'Insights', BarChart3],
+    ['records', 'Records', Waves],
     ['sources', 'Sources', ShieldCheck],
-    ['plan', 'Plan', Bot],
+    ['copilot', 'Copilot', Bot],
   ];
   return (
-    <div className="flex gap-1 rounded-lg border border-ocean-700 bg-ocean-950 p-1">
+    <div className="grid grid-cols-4 gap-1 rounded-[1.1rem] border border-slate-700/70 bg-slate-950/72 p-1.5 backdrop-blur-xl">
       {tabs.map(([id, label, Icon]) => (
         <button
           key={id}
           onClick={() => setActivePanel(id)}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors duration-150 ${
+          className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition duration-200 ${
             activePanel === id
-              ? 'bg-ocean-700 text-cyan-bright'
-              : 'text-slate-500 hover:bg-ocean-800 hover:text-slate-200'
+              ? 'bg-cyan-300 text-slate-950'
+              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
           }`}
         >
-          <Icon size={13} />
-          {label}
+          <Icon size={14} />
+          <span className="hidden sm:inline xl:hidden 2xl:inline">{label}</span>
         </button>
       ))}
     </div>
   );
 }
 
-function OverviewPanel({ error, payload, rankedZones, selected, setGeographyId, status, surfacePayload }) {
+function InsightsPanel({ forecasts, rankedZones, selected, setGeographyId, stats }) {
   return (
-    <div className="space-y-4">
-      {status === 'loading' && <p className="text-xs text-slate-500">Loading official records and context...</p>}
-      {status === 'error' && <p className="text-xs text-red-300">{error}</p>}
+    <div className="space-y-5">
       {selected ? <IncidentDetails incident={selected} /> : <EmptyInspector />}
-      <div>
-        <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">Ranked visible zones</p>
+      <section>
+        <PanelTitle label="Highest-risk zones" />
         <div className="space-y-2">
-          {rankedZones.slice(0, 6).map((zone) => (
+          {rankedZones.slice(0, 7).map((zone) => (
             <button
               key={zone.id}
               onClick={() => setGeographyId(zone.id)}
-              className="w-full rounded-md border border-ocean-700 bg-ocean-900 p-2 text-left hover:border-cyan-dark"
+              className="group w-full rounded-2xl border border-slate-700/80 bg-slate-900/72 p-3 text-left transition duration-200 hover:border-cyan-300/50 hover:bg-slate-900"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-200">{zone.label}</span>
-                <span className="text-[10px] text-slate-500">{zone.count} inputs</span>
+                <span className="text-sm font-semibold text-slate-100">{zone.label}</span>
+                <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] text-slate-400">{zone.count} inputs</span>
               </div>
-              <div className="mt-1 h-1.5 rounded-full bg-ocean-700">
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
                 <div
-                  className="h-full rounded-full bg-cyan-bright"
-                  style={{ width: `${Math.min(100, zone.score * 100)}%` }}
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-amber-300 to-red-500 transition-all duration-300"
+                  style={{ width: `${Math.min(100, Math.max(6, zone.score * 100))}%` }}
                 />
               </div>
             </button>
           ))}
         </div>
-      </div>
-      <SourceNotes payload={payload} surfacePayload={surfacePayload} />
+      </section>
+      <section>
+        <PanelTitle label="AI forecast blocks" />
+        <div className="space-y-2">
+          {forecasts.map((forecast) => (
+            <div key={forecast.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/72 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">{forecast.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">{forecast.body}</p>
+                </div>
+                <span className="rounded-full bg-cyan-300/10 px-2 py-1 text-[10px] font-semibold text-cyan-100">
+                  {formatPercent(forecast.score)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="rounded-2xl border border-slate-700/80 bg-slate-900/72 p-3">
+        <PanelTitle label="Historical comparison" />
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <QuickReadout label="Reported" value={stats.reportedCount} />
+          <QuickReadout label="Context" value={stats.contextCount} />
+          <QuickReadout label="Critical" value={stats.criticalCount} />
+          <QuickReadout label="Avg score" value={formatPercent(stats.averageSeverity)} />
+        </div>
+      </section>
     </div>
   );
 }
@@ -858,22 +1240,23 @@ function OverviewPanel({ error, payload, rankedZones, selected, setGeographyId, 
 function RecordsPanel({ incidents, setSelected }) {
   return (
     <div className="space-y-2">
-      {incidents.slice(0, 80).map((incident) => (
+      {incidents.slice(0, 90).map((incident) => (
         <button
           key={incident.id}
           onClick={() => setSelected(incident)}
-          className="w-full rounded-md border border-ocean-700 bg-ocean-900 p-3 text-left hover:border-cyan-dark"
+          className="w-full rounded-2xl border border-slate-700/80 bg-slate-900/72 p-3 text-left transition duration-200 hover:border-cyan-300/50 hover:bg-slate-900"
         >
           <div className="flex items-start justify-between gap-3">
-            <p className="text-xs font-semibold leading-snug text-slate-100">{incident.name}</p>
-            <span className="rounded bg-ocean-700 px-1.5 py-0.5 text-[10px] text-slate-300">
+            <p className="text-sm font-semibold leading-snug text-slate-100">{incident.name}</p>
+            <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-300">
               {Math.round(incident.severity_score * 100)}
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">{incident.open_date} | {incident.location}</p>
+          <p className="mt-1 text-xs text-slate-500">{incident.open_date} | {incident.location}</p>
+          <p className="mt-2 text-[11px] text-slate-400">{incident.severity_label}</p>
         </button>
       ))}
-      {!incidents.length && <p className="text-xs text-slate-500">No records match the active filters.</p>}
+      {!incidents.length && <p className="rounded-2xl border border-slate-700/80 bg-slate-900/72 p-4 text-sm text-slate-400">No marine records match the active filters.</p>}
     </div>
   );
 }
@@ -888,68 +1271,191 @@ function SourcesPanel({ surfacePayload }) {
           href={source.url}
           target="_blank"
           rel="noreferrer"
-          className="block rounded-md border border-ocean-700 bg-ocean-900 p-3 hover:border-cyan-dark"
+          className="block rounded-2xl border border-slate-700/80 bg-slate-900/72 p-4 transition duration-200 hover:border-cyan-300/50 hover:bg-slate-900"
         >
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold text-slate-100">{source.name}</p>
-            <ExternalLink size={13} className="text-slate-500" />
+            <p className="text-sm font-semibold text-slate-100">{source.name}</p>
+            <ExternalLink size={14} className="text-slate-500" />
           </div>
         </a>
       ))}
-      <p className="rounded-md border border-ocean-700 bg-ocean-950 p-3 text-[11px] leading-relaxed text-slate-500">
+      <p className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 text-xs leading-relaxed text-cyan-50/80">
         The heat surface is a decision-support view. Context zones describe maritime oil-risk pressure, not confirmed pollution detections.
       </p>
     </div>
   );
 }
 
-function AnalystPlanPanel({ contextCount, filteredSurfaceCount, mapMode, selectedGeography, selectedOil, status }) {
+function CopilotPanel({ mapMode, selectedGeography, selectedOil, stats, status }) {
   const steps = [
-    ['Fetch official records', status === 'success' ? 'complete' : 'running'],
-    [`Apply geography: ${selectedGeography.label}`, 'complete'],
-    [`Color by signal: ${selectedOil.label}`, 'complete'],
-    [`Build ${mapMode === MAP_MODE_HEAT ? 'satellite heat surface' : 'reported incident map'}`, 'complete'],
-    [`Blend ${contextCount} context anchors with ${filteredSurfaceCount - contextCount} reported records`, 'complete'],
-    ['Analyst review required before operational decisions', 'guardrail'],
+    ['Ingest official records', status === 'success' ? 'complete' : 'running'],
+    [`Scope region: ${selectedGeography.label}`, 'complete'],
+    [`Color model: ${selectedOil.label}`, 'complete'],
+    [`Render WebGL ${MAP_VIEWS[mapMode].label.toLowerCase()} view`, 'complete'],
+    [`Blend ${stats.contextCount} context anchors with ${stats.reportedCount} reported records`, 'complete'],
+    ['Keep analyst review before operational decisions', 'guardrail'],
   ];
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-[10px] uppercase tracking-widest text-slate-500">Analyst copilot</p>
-        <h3 className="mt-1 text-sm font-semibold text-slate-100">Current review plan</h3>
+        <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Analyst copilot</p>
+        <h3 className="mt-1 text-lg font-semibold text-slate-100">Current review plan</h3>
       </div>
       {steps.map(([label, state]) => (
-        <div key={label} className="flex items-start gap-3 rounded-md border border-ocean-700 bg-ocean-900 p-3">
+        <div key={label} className="flex items-start gap-3 rounded-2xl border border-slate-700/80 bg-slate-900/72 p-3">
           <CheckCircle2
-            size={15}
-            className={state === 'guardrail' ? 'mt-0.5 text-amber-300' : 'mt-0.5 text-cyan-bright'}
+            size={16}
+            className={state === 'guardrail' ? 'mt-0.5 text-amber-300' : 'mt-0.5 text-cyan-300'}
           />
-          <p className="text-xs leading-relaxed text-slate-300">{label}</p>
+          <p className="text-sm leading-6 text-slate-300">{label}</p>
         </div>
       ))}
-      <div className="rounded-md border border-ocean-700 bg-ocean-950 p-3">
-        <p className="text-xs font-semibold text-slate-200">Try command palette</p>
-        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-          Press K to jump to a sea, switch map modes, show critical zones, or reset the workspace.
-        </p>
-      </div>
     </div>
   );
 }
 
-function SourceNotes({ payload, surfacePayload }) {
+function IncidentDetails({ incident }) {
+  const oilType = classifyOilType(incident);
+  return (
+    <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+      <p className="text-[10px] uppercase tracking-[0.22em] text-cyan-100/70">Selected marine signal</p>
+      <h3 className="mt-2 text-lg font-semibold leading-snug text-slate-50">{incident.name}</h3>
+      <p className="mt-1 text-xs text-slate-400">{incident.location} | {incident.open_date || 'context zone'}</p>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <QuickReadout label="Severity" value={formatPercent(incident.severity_score)} />
+        <QuickReadout label="Signal" value={OIL_TYPES[oilType]?.label ?? 'Unknown'} />
+      </div>
+      <div className="mt-4 space-y-2 text-sm text-slate-300">
+        <Detail label="Assessment" value={incident.severity_label} />
+        <Detail label="Commodity" value={incident.commodity || 'Unknown'} />
+        <Detail label="Release" value={formatGallons(incident.max_potential_release_gallons)} />
+      </div>
+      {incident.description && (
+        <p className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/60 p-3 text-xs leading-relaxed text-slate-400">
+          {incident.description}
+        </p>
+      )}
+      {incident.source_url && (
+        <a href={incident.source_url} target="_blank" rel="noreferrer" className="premium-button mt-4 w-full justify-center">
+          <ExternalLink size={14} /> Open source
+        </a>
+      )}
+    </section>
+  );
+}
+
+function Detail({ label, value }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-slate-700/70 pb-2">
+      <span className="text-slate-500">{label}</span>
+      <span className="text-right text-slate-200">{value}</span>
+    </div>
+  );
+}
+
+function EmptyInspector() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-700/80 bg-slate-900/72 p-6 text-center text-slate-400">
+      <Crosshair size={28} />
+      <p className="mt-3 text-sm leading-6">Select a heat zone or marine marker to inspect a possible oil-like anomaly or context signal.</p>
+    </div>
+  );
+}
+
+function PanelTitle({ label }) {
+  return <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</p>;
+}
+
+function StatusPill({ status }) {
+  const map = {
+    success: ['bg-emerald-400', 'Live feed'],
+    loading: ['bg-cyan-300', 'Syncing'],
+    error: ['bg-red-400', 'Feed issue'],
+    idle: ['bg-slate-500', 'Idle'],
+  };
+  const [dot, label] = map[status] ?? map.idle;
+  return (
+    <div className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-700/80 bg-slate-950/80 px-3 text-xs font-semibold text-slate-200">
+      <span className={`h-2 w-2 rounded-full ${dot} animate-pulse`} />
+      {label}
+    </div>
+  );
+}
+
+function QuickReadout({ label, value }) {
+  return (
+    <div className="rounded-xl border border-slate-700/70 bg-slate-950/64 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-slate-100">{value}</p>
+    </div>
+  );
+}
+
+function SeverityBars({ distribution }) {
+  const total = Math.max(1, Object.values(distribution).reduce((sum, value) => sum + value, 0));
+  const bars = [
+    ['Lower', distribution.lower, 'bg-cyan-300'],
+    ['Moderate', distribution.moderate, 'bg-amber-300'],
+    ['High', distribution.high, 'bg-orange-500'],
+    ['Critical', distribution.critical, 'bg-red-500'],
+  ];
   return (
     <div className="space-y-2">
-      {payload?.coverage_note && (
-        <p className="rounded-md border border-ocean-700 bg-ocean-950 p-3 text-[11px] leading-relaxed text-slate-500">
-          {payload.coverage_note}
-        </p>
-      )}
-      {surfacePayload?.coverage_note && (
-        <p className="rounded-md border border-ocean-700 bg-ocean-950 p-3 text-[11px] leading-relaxed text-slate-500">
-          {surfacePayload.coverage_note}
-        </p>
-      )}
+      {bars.map(([label, value, color]) => (
+        <div key={label} className="grid grid-cols-[68px_minmax(0,1fr)_34px] items-center gap-2 text-[11px] text-slate-400">
+          <span>{label}</span>
+          <span className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+            <span className={`block h-full rounded-full ${color}`} style={{ width: `${Math.max(4, (value / total) * 100)}%` }} />
+          </span>
+          <span className="text-right">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrendChart({ data }) {
+  const max = Math.max(1, ...data.map((item) => item.count));
+  const points = data.map((item, index) => {
+    const x = data.length <= 1 ? 0 : (index / (data.length - 1)) * 100;
+    const y = 40 - (item.count / max) * 34;
+    return `${x},${y}`;
+  });
+  return (
+    <svg className="h-16 w-full overflow-visible" viewBox="0 0 100 44" role="img" aria-label="Pollution trend chart">
+      <path d="M0 40 H100" stroke="rgba(148,163,184,0.2)" strokeWidth="1" />
+      <polyline fill="none" points={points.join(' ')} stroke="#67e8f9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" />
+      <polyline fill="none" points={points.join(' ')} stroke="rgba(103,232,249,0.28)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="7" />
+      {data.map((item, index) => {
+        const x = data.length <= 1 ? 0 : (index / (data.length - 1)) * 100;
+        const y = 40 - (item.count / max) * 34;
+        return <circle key={item.year} cx={x} cy={y} r="1.7" fill="#e0faff" />;
+      })}
+    </svg>
+  );
+}
+
+function ZoneSpark({ zones }) {
+  const max = Math.max(1, ...zones.map((zone) => zone.count * zone.score));
+  return (
+    <div className="flex h-16 items-end gap-1.5">
+      {zones.map((zone) => (
+        <div key={zone.id} className="group relative flex flex-1 items-end">
+          <span
+            className="block w-full rounded-t-lg bg-gradient-to-t from-red-500 via-amber-300 to-cyan-300"
+            style={{ height: `${Math.max(10, ((zone.count * zone.score) / max) * 58)}px` }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ForecastNeedle({ value }) {
+  return (
+    <div className="relative h-3 rounded-full bg-slate-800">
+      <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-cyan-300 via-amber-300 to-red-500" style={{ width: `${Math.max(6, value * 100)}%` }} />
+      <span className="absolute top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-slate-50 shadow-[0_0_14px_rgba(255,255,255,0.6)]" style={{ left: `${Math.min(96, Math.max(3, value * 100))}%` }} />
     </div>
   );
 }
@@ -961,10 +1467,10 @@ function CommandPalette({ commands, open, setOpen }) {
   );
   if (!open) return null;
   return (
-    <div className="absolute inset-0 z-[1000] flex items-start justify-center bg-ocean-950/60 pt-24 backdrop-blur-sm">
-      <div className="w-[520px] rounded-xl border border-ocean-600 bg-ocean-900 shadow-ocean">
-        <div className="flex items-center gap-2 border-b border-ocean-700 px-3 py-3">
-          <Command size={16} className="text-cyan-bright" />
+    <div className="absolute inset-0 z-[1000] flex items-start justify-center bg-slate-950/72 px-4 pt-24 backdrop-blur-xl">
+      <div className="w-full max-w-[560px] rounded-[1.35rem] border border-cyan-300/20 bg-slate-950/92 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+        <div className="flex items-center gap-2 border-b border-slate-700/70 px-4 py-3">
+          <Command size={16} className="text-cyan-300" />
           <input
             autoFocus
             className="w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
@@ -985,10 +1491,10 @@ function CommandPalette({ commands, open, setOpen }) {
                 setOpen(false);
                 setNeedle('');
               }}
-              className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-slate-200 hover:bg-ocean-700"
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm text-slate-200 transition duration-150 hover:bg-cyan-300/10 hover:text-cyan-50"
             >
               {command.label}
-              <span className="text-[10px] uppercase tracking-widest text-slate-500">{command.hint}</span>
+              <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{command.hint}</span>
             </button>
           ))}
         </div>
@@ -997,93 +1503,78 @@ function CommandPalette({ commands, open, setOpen }) {
   );
 }
 
-function EmptyInspector() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-md border border-ocean-700 bg-ocean-950 p-6 text-center text-slate-500">
-      <Globe2 size={26} />
-              <p className="mt-2 text-sm">Select a marine marker to inspect a reported possible oil incident.</p>
-    </div>
-  );
+function computeStats(incidents, surface) {
+  const severityTotal = surface.reduce((sum, point) => sum + Number(point.severity_score ?? 0), 0);
+  const averageSeverity = surface.length ? severityTotal / surface.length : 0;
+  const reportedCount = surface.filter((point) => point.record_type !== 'context_anchor').length;
+  const contextCount = surface.length - reportedCount;
+  const highCount = surface.filter((point) => point.severity_score >= 0.7).length;
+  const criticalCount = surface.filter((point) => point.severity_score >= 0.9).length;
+  const recentCount = incidents.filter((incident) => incident.open_date >= '2020-01-01').length;
+  const earlierCount = Math.max(0, incidents.length - recentCount);
+  const trendLabel = recentCount > earlierCount ? 'Rising watch' : recentCount === earlierCount ? 'Stable watch' : 'Cooling watch';
+  return {
+    averageSeverity,
+    contextCount,
+    criticalCount,
+    distribution: {
+      lower: surface.filter((point) => point.severity_score < 0.45).length,
+      moderate: surface.filter((point) => point.severity_score >= 0.45 && point.severity_score < 0.7).length,
+      high: surface.filter((point) => point.severity_score >= 0.7 && point.severity_score < 0.9).length,
+      critical: criticalCount,
+    },
+    highCount,
+    recentCount,
+    reportedCount,
+    surfaceCount: surface.length,
+    trendLabel,
+  };
 }
 
-function ModeButton({ active, icon, label, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 ${
-        active
-          ? 'bg-ocean-700 text-cyan-bright'
-          : 'text-slate-500 hover:bg-ocean-800 hover:text-slate-200'
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
+function buildTrend(incidents) {
+  const buckets = new Map();
+  incidents.forEach((incident) => {
+    const year = String(incident.open_date || '').slice(0, 4);
+    if (!/^\d{4}$/.test(year)) return;
+    buckets.set(year, (buckets.get(year) ?? 0) + 1);
+  });
+  const years = Array.from(buckets.keys()).sort().slice(-10);
+  if (!years.length) return [{ year: 'now', count: 0 }];
+  return years.map((year) => ({ year, count: buckets.get(year) ?? 0 }));
 }
 
-function MiniMetric({ label, value }) {
-  return (
-    <div className="metric-card">
-      <p className="text-[10px] uppercase tracking-widest text-slate-500">{label}</p>
-      <p className="text-lg font-semibold text-slate-100">{value}</p>
-    </div>
-  );
-}
-
-function IncidentDetails({ incident }) {
-  const oilType = classifyOilType(incident);
-  return (
-    <div className="space-y-4">
-      <div>
-        <p className="text-[10px] uppercase tracking-widest text-slate-500">Selected marine record</p>
-        <h3 className="mt-1 text-base font-semibold leading-snug text-slate-100">{incident.name}</h3>
-        <p className="mt-1 text-xs text-slate-500">
-          {incident.location} | {incident.open_date}
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <MiniMetric label="Severity" value={`${Math.round(incident.severity_score * 100)}%`} />
-        <MiniMetric label="Signal" value={OIL_TYPES[oilType]?.label ?? 'Unknown'} />
-      </div>
-      <div className="space-y-2 text-xs text-slate-400">
-        <Detail label="Assessment" value={incident.severity_label} />
-        <Detail label="Commodity" value={incident.commodity || 'Unknown'} />
-        <Detail label="Release" value={formatGallons(incident.max_potential_release_gallons)} />
-        <Detail label="Tags" value={incident.tags || 'None listed'} />
-      </div>
-      {incident.description && (
-        <p className="rounded-md border border-ocean-700 bg-ocean-900 p-3 text-xs leading-relaxed text-slate-400">
-          {incident.description}
-        </p>
-      )}
-      <a
-        href={incident.source_url}
-        target="_blank"
-        rel="noreferrer"
-        className="btn-ghost inline-flex w-full justify-center border border-ocean-600 text-xs"
-      >
-        <ExternalLink size={13} /> Open source
-      </a>
-    </div>
-  );
-}
-
-function Detail({ label, value }) {
-  return (
-    <div className="flex items-start justify-between gap-3 border-b border-ocean-700 pb-2">
-      <span className="text-slate-500">{label}</span>
-      <span className="text-right text-slate-300">{value}</span>
-    </div>
-  );
+function buildForecasts(stats, rankedZones) {
+  const top = rankedZones[0];
+  const score = Math.min(0.98, Math.max(0.18, stats.averageSeverity * 0.72 + stats.highCount / Math.max(16, stats.surfaceCount)));
+  return [
+    {
+      title: top ? `${top.label} watch` : 'Global watch',
+      body: top
+        ? `Next review should prioritize ${top.label}. The visible surface has ${top.count} inputs and an average pressure of ${formatPercent(top.score)}.`
+        : 'No visible hotspot is selected. Broaden filters to build a forecast.',
+      score,
+    },
+    {
+      title: '30 day drift risk',
+      body: `${stats.highCount} high-severity signals remain in scope. Treat this as a triage forecast, not a confirmed detection.`,
+      score: Math.min(0.95, score * 0.86 + 0.08),
+    },
+    {
+      title: 'Analyst confidence',
+      body: `${stats.contextCount} context anchors support routing decisions, while ${stats.reportedCount} official reported records ground the view.`,
+      score: Math.min(0.92, 0.35 + stats.reportedCount / Math.max(20, stats.surfaceCount + 1)),
+    },
+  ];
 }
 
 function rankZones(points) {
-  return GEOGRAPHY_FILTERS.filter((zone) => zone.bounds).map((zone) => {
-    const zonePoints = points.filter((point) => inBounds(point, zone.bounds));
-    const score = zonePoints.length
-      ? zonePoints.reduce((total, point) => total + point.severity_score, 0) / zonePoints.length
-      : 0;
-    return { ...zone, count: zonePoints.length, score };
-  }).sort((a, b) => b.score * b.count - a.score * a.count);
+  return GEOGRAPHY_FILTERS.filter((zone) => zone.bounds)
+    .map((zone) => {
+      const zonePoints = points.filter((point) => inBounds(point, zone.bounds));
+      const score = zonePoints.length
+        ? zonePoints.reduce((total, point) => total + point.severity_score, 0) / zonePoints.length
+        : 0;
+      return { ...zone, count: zonePoints.length, score };
+    })
+    .sort((a, b) => b.score * b.count - a.score * a.count);
 }

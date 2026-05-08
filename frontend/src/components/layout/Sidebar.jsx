@@ -1,4 +1,4 @@
-import { Layers, Grid2x2, AlertTriangle, Cpu, Settings, Waves, Globe2 } from 'lucide-react';
+import { AlertTriangle, Cpu, FileText, Grid2x2, Layers, Settings, Waves, Globe2 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'global',    label: 'Global Map',      icon: Globe2      },
@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { id: 'batch',     label: 'Batch Analysis',  icon: Grid2x2     },
   { id: 'incidents', label: 'Incidents',        icon: AlertTriangle },
   { id: 'benchmark', label: 'AMD Benchmark',   icon: Cpu         },
+  { id: 'reports',   label: 'Reports',         icon: FileText    },
 ];
 
 /**
@@ -14,23 +15,21 @@ const NAV_ITEMS = [
 export default function Sidebar({ activeTab, setActiveTab, incidentCount }) {
   return (
     <aside
-      className="flex flex-col h-full w-[220px] flex-shrink-0 bg-ocean-900 border-r border-ocean-700"
+      className="z-20 flex h-auto w-full flex-shrink-0 flex-col border-b border-slate-800/90 bg-slate-950/88 backdrop-blur-xl lg:h-full lg:w-[236px] lg:border-b-0 lg:border-r"
       aria-label="Main navigation"
     >
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-4 border-b border-ocean-700">
-        <div className="flex-shrink-0 w-7 h-7 rounded-md bg-ocean-750 border border-cyan-dark flex items-center justify-center">
+      <div className="flex items-center gap-3 border-b border-slate-800/80 px-4 py-3 lg:py-5">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 shadow-[0_0_24px_rgba(34,211,238,0.16)] lg:h-9 lg:w-9">
           <Waves size={14} className="text-cyan-bright" aria-hidden="true" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-100 truncate leading-tight">OceanWatch AI</p>
-          <p className="text-[10px] text-slate-500 leading-tight">SAR Pollution Triage</p>
+          <p className="truncate text-sm font-semibold leading-tight text-slate-100 sm:text-base lg:text-sm">OceanWatch AI</p>
+          <p className="leading-tight text-[10px] uppercase tracking-[0.16em] text-slate-500 sm:text-xs lg:text-[10px]">Environmental intelligence</p>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto scrollable" aria-label="Tabs">
-        <p className="section-label px-2 pb-2 pt-1">Analysis</p>
+      <nav className="scrollable flex flex-1 gap-1 overflow-x-auto px-2 py-2 lg:block lg:space-y-1 lg:overflow-y-auto lg:py-4" aria-label="Tabs">
+        <p className="section-label hidden px-2 pb-2 pt-1 lg:block">Analysis</p>
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -49,8 +48,7 @@ export default function Sidebar({ activeTab, setActiveTab, incidentCount }) {
         ))}
       </nav>
 
-      {/* Settings at bottom */}
-      <div className="px-2 pb-3 border-t border-ocean-700 pt-2">
+      <div className="hidden border-t border-slate-800/80 px-2 pb-3 pt-2 lg:block">
         <button
           onClick={() => setActiveTab('settings')}
           className={`tab-nav-item ${activeTab === 'settings' ? 'active' : ''}`}
