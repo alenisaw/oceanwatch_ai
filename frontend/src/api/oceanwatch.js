@@ -94,3 +94,15 @@ export async function fetchOceanRiskSurface(filters = {}, apiUrl) {
   if (filters.endDate) params.set('end_date', filters.endDate);
   return request(`/incidents/ocean-risk?${params.toString()}`, {}, apiUrl);
 }
+
+/**
+ * Generate a professional environmental report draft using an open-source LLM provider when available.
+ * @param {{ geography: string, stats: object, ranked_zones: object[], timeframe: object }} payload
+ */
+export async function generateEnvironmentalReport(payload, apiUrl) {
+  return request('/reports/environmental', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }, apiUrl);
+}

@@ -1,13 +1,15 @@
 import base64
 import csv
 import io
+import json
+import os
 import pathlib
 import random
 import tempfile
 import time
 from datetime import datetime, timezone
 from functools import lru_cache
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 def _ndarray_to_b64_png(arr) -> str:
@@ -260,6 +262,24 @@ def create_app():
             "fetched_at": datetime.now(tz=timezone.utc).isoformat(),
         }
 
+    @app.post("/reports/environmental")
+    def environmental_report(payload: dict[str, object]) -> dict[str, object]:
+        """Generate a professional AI-assisted environmental report draft."""
+        summary = _generate_environmental_report(payload)
+        return {
+            "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+            "model": summary["model"],
+            "provider": summary["provider"],
+            "summary": summary["summary"],
+            "executive_assessment": summary["executive_assessment"],
+            "risk_trends": summary["risk_trends"],
+            "recommended_actions": summary["recommended_actions"],
+            "confidence_note": (
+                "This report is decision-support intelligence. It describes possible oil-like "
+                "anomalies and maritime context, not confirmed detections."
+            ),
+        }
+
     return app
 
 
@@ -478,3 +498,159 @@ def _context_severity_label(score: float) -> str:
     if score >= 0.55:
         return "moderate maritime oil-risk context"
     return "lower maritime oil-risk context"
+
+
+def _generate_environmental_report(payload: dict[str, object]) -> dict[str, object]:
+    model = os.getenv("OCEANWATCH_LLM_MODEL", "qwen2.5:7b-instruct")
+    provider = os.getenv("OCEANWATCH_LLM_PROVIDER", "ollama")
+    prompt = _report_prompt(payload)
+    if provider.lower() == "ollama":
+        response = _try_ollama_generate(prompt=prompt, model=model)
+        if response:
+            return {
+                "model": model,
+                "provider": "ollama",
+                **_parse_report_text(response),
+            }
+    return {
+        "model": model,
+        "provider": "deterministic_fallback",
+        **_fallback_report_sections(payload),
+    }
+
+
+def _report_prompt(payload: dict[str, object]) -> str:
+    stats = payload.get("stats", {})
+    zones = payload.get("ranked_zones", [])
+    geography = payload.get("geography", "Global")
+    return (
+        "You are an environmental intelligence analyst writing for a professional maritime "
+        "operations team. Write concise report sections about possible oil-like anomalies. "
+        "Do not claim confirmed detections. Use uncertainty-aware language.\n\n"
+        f"Geography: {geography}\n"
+        f"Statistics JSON: {json.dumps(stats, ensure_ascii=True)}\n"
+        f"Highest-risk zones JSON: {json.dumps(zones, ensure_ascii=True)}\n\n"
+        "Return exactly four markdown sections with these headings:\n"
+        "## Summary\n"
+        "## Executive Assessment\n"
+        "## Risk Trends\n"
+        "## Recommended Actions\n"
+    )
+
+
+def _try_ollama_generate(prompt: str, model: str) -> str | None:
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    body = json.dumps(
+        {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"temperature": 0.25, "num_predict": 700},
+        }
+    ).encode("utf-8")
+    request = Request(
+        f"{base_url}/api/generate",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=45) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return None
+    text = str(data.get("response", "")).strip()
+    return text or None
+
+
+def _parse_report_text(text: str) -> dict[str, object]:
+    sections = {
+        "summary": "",
+        "executive_assessment": "",
+        "risk_trends": "",
+        "recommended_actions": [],
+    }
+    current: str | None = None
+    lines: list[str] = []
+    mapping = {
+        "summary": "summary",
+        "executive assessment": "executive_assessment",
+        "risk trends": "risk_trends",
+        "recommended actions": "recommended_actions",
+    }
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if line.startswith("## "):
+            if current:
+                _assign_report_section(sections, current, lines)
+            heading = line[3:].strip().lower()
+            current = mapping.get(heading)
+            lines = []
+        elif current:
+            lines.append(raw_line)
+    if current:
+        _assign_report_section(sections, current, lines)
+    fallback = _fallback_report_sections({})
+    for key, value in fallback.items():
+        if not sections.get(key):
+            sections[key] = value
+    return sections
+
+
+def _assign_report_section(sections: dict[str, object], key: str, lines: list[str]) -> None:
+    text = "\n".join(line.strip(" -") for line in lines if line.strip()).strip()
+    if key == "recommended_actions":
+        sections[key] = [line.strip(" -") for line in lines if line.strip()]
+    else:
+        sections[key] = text
+
+
+def _fallback_report_sections(payload: dict[str, object]) -> dict[str, object]:
+    stats = payload.get("stats", {}) if isinstance(payload, dict) else {}
+    zones = payload.get("ranked_zones", []) if isinstance(payload, dict) else []
+    geography = payload.get("geography", "Global") if isinstance(payload, dict) else "Global"
+    visible = _safe_stat(stats, "surfaceCount")
+    average = _safe_stat(stats, "averageSeverity")
+    high = _safe_stat(stats, "highCount")
+    critical = _safe_stat(stats, "criticalCount")
+    top_zone = "the selected operating area"
+    if isinstance(zones, list) and zones:
+        first_zone = zones[0]
+        if isinstance(first_zone, dict):
+            top_zone = str(first_zone.get("label", top_zone))
+    summary = (
+        f"The {geography} operating view contains {visible} blended intelligence inputs with "
+        f"an average pollution pressure of {average}. The surface includes {high} high-severity "
+        f"signals and {critical} critical watch items."
+    )
+    return {
+        "summary": summary,
+        "executive_assessment": (
+            f"Current conditions warrant focused review of {top_zone}. The pattern should be "
+            "treated as a possible oil-like anomaly surface supported by reported incidents and "
+            "maritime context anchors, not as confirmed pollution detection."
+        ),
+        "risk_trends": (
+            "Visible risk is concentrated around recurring maritime corridors and offshore "
+            "production zones. Historical comparison should prioritize changes in density, "
+            "severity mix, and proximity to sensitive coastal waters."
+        ),
+        "recommended_actions": [
+            "Prioritize analyst review for the highest-risk visible zones.",
+            "Compare recent satellite imagery against the current heat and zone overlays.",
+            (
+                "Escalate only after corroborating with official incident records "
+                "or field intelligence."
+            ),
+            "Archive this report with timestamped map imagery for trend comparison.",
+        ],
+    }
+
+
+def _safe_stat(stats: object, key: str) -> object:
+    if isinstance(stats, dict):
+        value = stats.get(key, "not available")
+        if isinstance(value, float):
+            return f"{round(value * 100)}%"
+        return value
+    return "not available"

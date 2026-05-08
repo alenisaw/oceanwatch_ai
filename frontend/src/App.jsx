@@ -7,6 +7,7 @@ import SingleTile from './tabs/SingleTile.jsx';
 import BatchAnalysis from './tabs/BatchAnalysis.jsx';
 import Incidents from './tabs/Incidents.jsx';
 import AmdBenchmark from './tabs/AmdBenchmark.jsx';
+import Reports from './tabs/Reports.jsx';
 import Settings from './tabs/Settings.jsx';
 
 const STORAGE_KEY = 'oceanwatch_incidents';
@@ -28,7 +29,7 @@ function loadStorage(key, fallback) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('global');
+  const [activeTab, setActiveTab] = useState(() => window.location.hash.replace('#/', '') || 'global');
   const [apiStatus, setApiStatus] = useState('unknown');
   const [incidents, setIncidents] = useState(() => loadStorage(STORAGE_KEY, []));
   const [settings, setSettings]   = useState(() => loadStorage(SETTINGS_KEY, DEFAULT_SETTINGS));
@@ -63,28 +64,35 @@ export default function App() {
 
   const saveSettings = useCallback((s) => setSettings(s), []);
 
+  const navigate = useCallback((tab) => {
+    setActiveTab(tab);
+    window.history.replaceState(null, '', `#/${tab}`);
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => setActiveTab(window.location.hash.replace('#/', '') || 'global');
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-ocean-950">
-      {/* Sidebar */}
+    <div className="app-chrome flex h-dvh w-screen flex-col overflow-hidden bg-slate-950 text-slate-100 lg:flex-row">
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={navigate}
         incidentCount={incidents.length}
       />
 
-      {/* Main */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        {/* Header */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <Header
           activeTab={activeTab}
           apiStatus={apiStatus}
           apiUrl={settings.apiUrl}
         />
 
-        {/* Tab content */}
-        <main className="flex-1 min-h-0 overflow-hidden p-4">
+        <main className="min-h-0 flex-1 overflow-hidden p-2 sm:p-3 lg:p-4">
           {activeTab === 'global' && (
-            <GlobalMap apiUrl={settings.apiUrl} />
+            <GlobalMap apiUrl={settings.apiUrl} onGenerateReport={() => navigate('reports')} />
           )}
           {activeTab === 'single' && (
             <SingleTile apiUrl={settings.apiUrl} onNewIncident={addIncident} />
@@ -97,6 +105,9 @@ export default function App() {
           )}
           {activeTab === 'benchmark' && (
             <AmdBenchmark apiUrl={settings.apiUrl} />
+          )}
+          {activeTab === 'reports' && (
+            <Reports apiUrl={settings.apiUrl} />
           )}
           {activeTab === 'settings' && (
             <Settings settings={settings} onSave={saveSettings} />
