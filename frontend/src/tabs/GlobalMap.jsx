@@ -692,7 +692,7 @@ function WebGLPollutionMap({
   );
 }
 
-export default function GlobalMap({ onGenerateReport }) {
+export default function GlobalMap({ apiUrl, onGenerateReport }) {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
@@ -721,8 +721,8 @@ export default function GlobalMap({ onGenerateReport }) {
     setError('');
     try {
       const [data, surface] = await Promise.all([
-        fetchNoaaIncidents({ threat: 'Oil', limit: 2400, startDate, endDate }),
-        fetchOceanRiskSurface({ threat: 'Oil', limit: 2400, startDate, endDate }),
+        fetchNoaaIncidents({ threat: 'Oil', limit: 2400, startDate, endDate }, apiUrl),
+        fetchOceanRiskSurface({ threat: 'Oil', limit: 2400, startDate, endDate }, apiUrl),
       ]);
       setPayload(data);
       setSurfacePayload(surface);
@@ -733,7 +733,7 @@ export default function GlobalMap({ onGenerateReport }) {
       setError(err.message ?? 'Failed to load official incident feed');
       setStatus('error');
     }
-  }, [startDate, endDate]);
+  }, [apiUrl, startDate, endDate]);
 
   useEffect(() => {
     loadIncidents();

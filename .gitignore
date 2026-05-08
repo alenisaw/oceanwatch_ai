@@ -31,3 +31,7 @@ Thumbs.db
 
 # Local AI agent context
 .agent/
+
+# Logs
+*.err.log
+*.log

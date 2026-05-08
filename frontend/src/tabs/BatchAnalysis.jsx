@@ -14,7 +14,7 @@ const DEMO_TILE_NAMES = [
   'no_oil_like',
 ];
 
-export default function BatchAnalysis() {
+export default function BatchAnalysis({ apiUrl }) {
   const [status, setStatus]     = useState('idle');
   const [result, setResult]     = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -28,18 +28,18 @@ export default function BatchAnalysis() {
   };
 
   const runBatch = useCallback(async (targetFiles) => {
-    if (!targetFiles?.length) return;
+    const batchFiles = targetFiles ?? [];
     setStatus('loading');
     setErrorMsg('');
     try {
-      const data = await analyzeBatch(targetFiles);
+      const data = await analyzeBatch(batchFiles, apiUrl);
       setResult(data);
       setStatus('success');
     } catch (err) {
       setErrorMsg(err.message ?? 'Unknown error');
       setStatus('error');
     }
-  }, []);
+  }, [apiUrl]);
 
   const isLoading = status === 'loading';
 
@@ -76,7 +76,7 @@ export default function BatchAnalysis() {
       {status === 'loading' && (
         <StatusBanner
           variant="loading"
-          message={`Processing ${files.length} tile${files.length !== 1 ? 's' : ''}…`}
+          message={`Processing ${files.length || DEMO_TILE_NAMES.length} tile${files.length !== 1 ? 's' : ''}...`}
           detail="Running segmentation pipeline on each tile sequentially."
         />
       )}
@@ -84,8 +84,8 @@ export default function BatchAnalysis() {
       {status === 'success' && (
         <StatusBanner
           variant="success"
-          message={`Batch complete — ${result.total_tiles} tiles processed`}
-          detail={`${result.tiles_per_second.toFixed(1)} tiles/s · ${result.total_latency_ms.toFixed(0)} ms total`}
+          message={`Batch complete - ${result.total_tiles} tiles processed`}
+          detail={`${result.tiles_per_second.toFixed(1)} tiles/s - ${result.total_latency_ms.toFixed(0)} ms total`}
         />
       )}
 
@@ -162,13 +162,13 @@ export default function BatchAnalysis() {
                         : <RiskBadge level={row.risk_level} size="sm" />}
                     </td>
                     <td className="px-4 py-2.5 tabular-nums text-slate-300">
-                      {row.error ? '—' : `${(row.confidence * 100).toFixed(1)}%`}
+                      {row.error ? '-' : `${(row.confidence * 100).toFixed(1)}%`}
                     </td>
                     <td className="px-4 py-2.5 tabular-nums text-slate-300">
-                      {row.error ? '—' : `${(row.affected_pixel_ratio * 100).toFixed(2)}%`}
+                      {row.error ? '-' : `${(row.affected_pixel_ratio * 100).toFixed(2)}%`}
                     </td>
                     <td className="px-4 py-2.5 tabular-nums text-slate-300">
-                      {row.error ? '—' : row.regions_detected}
+                      {row.error ? '-' : row.regions_detected}
                     </td>
                     <td className="px-4 py-2.5 tabular-nums font-mono text-slate-400">
                       {row.error ? <span className="text-red-400 text-[10px]">{row.error}</span> : `${row.latency_ms} ms`}

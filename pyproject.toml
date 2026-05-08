@@ -23,6 +23,7 @@ dependencies = [
 [project.optional-dependencies]
 api = [
     "fastapi>=0.115",
+    "python-multipart>=0.0.20",
     "uvicorn[standard]>=0.30",
 ]
 ui = [

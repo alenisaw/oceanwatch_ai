@@ -47,7 +47,7 @@ export default function App() {
   /* Health check on mount and when API URL changes */
   useEffect(() => {
     setApiStatus('unknown');
-    healthCheck()
+    healthCheck(settings.apiUrl)
       .then(() => setApiStatus('ok'))
       .catch(() => setApiStatus('error'));
   }, [settings.apiUrl]);
@@ -92,22 +92,22 @@ export default function App() {
 
         <main className="min-h-0 flex-1 overflow-hidden p-2 sm:p-3 lg:p-4">
           {activeTab === 'global' && (
-            <GlobalMap onGenerateReport={() => navigate('reports')} />
+            <GlobalMap apiUrl={settings.apiUrl} onGenerateReport={() => navigate('reports')} />
           )}
           {activeTab === 'single' && (
-            <SingleTile onNewIncident={addIncident} />
+            <SingleTile apiUrl={settings.apiUrl} onNewIncident={addIncident} />
           )}
           {activeTab === 'batch' && (
-            <BatchAnalysis />
+            <BatchAnalysis apiUrl={settings.apiUrl} />
           )}
           {activeTab === 'incidents' && (
             <Incidents incidents={incidents} onClear={clearIncidents} />
           )}
           {activeTab === 'benchmark' && (
-            <AmdBenchmark />
+            <AmdBenchmark apiUrl={settings.apiUrl} />
           )}
           {activeTab === 'reports' && (
-            <Reports />
+            <Reports apiUrl={settings.apiUrl} />
           )}
           {activeTab === 'settings' && (
             <Settings settings={settings} onSave={saveSettings} />

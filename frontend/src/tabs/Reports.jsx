@@ -70,7 +70,7 @@ function rankZones(points) {
     .sort((a, b) => b.score * b.count - a.score * a.count);
 }
 
-export default function Reports() {
+export default function Reports({ apiUrl }) {
   const reportRef = useRef(null);
   const [status, setStatus] = useState('idle');
   const [exporting, setExporting] = useState(false);
@@ -88,19 +88,28 @@ export default function Reports() {
     setError('');
     try {
       const [incidentPayload, surfacePayload] = await Promise.all([
-        fetchNoaaIncidents({ threat: 'Oil', limit: 2400, startDate: timeframe.start, endDate: timeframe.end }),
-        fetchOceanRiskSurface({ threat: 'Oil', limit: 2400, startDate: timeframe.start, endDate: timeframe.end }),
+        fetchNoaaIncidents(
+          { threat: 'Oil', limit: 2400, startDate: timeframe.start, endDate: timeframe.end },
+          apiUrl,
+        ),
+        fetchOceanRiskSurface(
+          { threat: 'Oil', limit: 2400, startDate: timeframe.start, endDate: timeframe.end },
+          apiUrl,
+        ),
       ]);
       const surfacePoints = surfacePayload.surface_points ?? [];
       const noaaIncidents = incidentPayload.incidents ?? [];
       const reportStats = computeReportStats(surfacePoints, noaaIncidents);
       const zones = rankZones(surfacePoints).slice(0, 6);
-      const generated = await generateEnvironmentalReport({
-        geography: 'Global marine operating picture',
-        ranked_zones: zones,
-        stats: reportStats,
-        timeframe,
-      });
+      const generated = await generateEnvironmentalReport(
+        {
+          geography: 'Global marine operating picture',
+          ranked_zones: zones,
+          stats: reportStats,
+          timeframe,
+        },
+        apiUrl,
+      );
       setPoints(surfacePoints);
       setIncidents(noaaIncidents);
       setReport(generated);
