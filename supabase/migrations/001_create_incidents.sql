@@ -1,3 +1,5 @@
+create extension if not exists pgcrypto;
+
 create table if not exists public.incidents (
     id uuid primary key default gen_random_uuid(),
     incident_id text not null unique,
