@@ -3,7 +3,7 @@
  * All backend communication is isolated here.
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const DEFAULT_BASE = API_BASE_URL;
 
 function resolveBase(apiUrl) {

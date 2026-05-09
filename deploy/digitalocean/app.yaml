@@ -28,4 +28,4 @@ services:
       - key: OCEANWATCH_REMOTE_GPU_TIMEOUT
         value: "60"
       - key: OCEANWATCH_CORS_ORIGINS
-        value: ""
+        value: "${APP_URL}"

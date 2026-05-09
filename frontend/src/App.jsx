@@ -21,7 +21,7 @@ const DEFAULT_SETTINGS = {
 
 function normalizeSettings(settings) {
   const merged = { ...DEFAULT_SETTINGS, ...settings };
-  if (merged.apiUrl === 'http://localhost:8000') {
+  if (['http://localhost:8000', 'http://127.0.0.1:8000'].includes(merged.apiUrl)) {
     merged.apiUrl = API_BASE_URL;
   }
   return merged;

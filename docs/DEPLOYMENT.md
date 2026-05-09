@@ -23,7 +23,8 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. Check backend runtime with:
+Open `http://127.0.0.1:5173`. The Vite dev proxy sends `/api` requests to
+`http://127.0.0.1:8000`. Check backend runtime with:
 
 ```powershell
 curl http://127.0.0.1:8000/runtime
@@ -46,8 +47,9 @@ weights, or large ML assets.
 `deploy/digitalocean/app.yaml` points at `alenisaw/oceanwatch_ai`, uses the CPU Dockerfile,
 and keeps `OCEANWATCH_MODEL_BACKEND=deterministic`.
 
-Set `OCEANWATCH_CORS_ORIGINS` in the App Platform dashboard when deploying a hosted
-frontend. For local development, the backend defaults to common local Vite origins.
+The app spec sets `OCEANWATCH_CORS_ORIGINS=${APP_URL}`, which DigitalOcean expands
+to the live app URL. Add any separate custom frontend domains to this comma-separated
+value in the App Platform dashboard.
 
 ## Future Remote AMD GPU Worker Plan
 

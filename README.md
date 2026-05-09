@@ -48,7 +48,7 @@ Open:
 http://127.0.0.1:5173
 ```
 
-The frontend defaults to `http://127.0.0.1:8000` in Settings. If the backend runs on another port, update the Backend URL in the Settings tab.
+The frontend defaults to the same-origin `/api` proxy. If the backend runs on another port or host, set `VITE_API_URL` or update the Backend URL in the Settings tab.
 
 ## Runtime Modes
 
