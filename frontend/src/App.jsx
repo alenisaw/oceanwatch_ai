@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { healthCheck } from './api/oceanwatch.js';
+import { API_BASE_URL, healthCheck } from './api/oceanwatch.js';
 import Sidebar from './components/layout/Sidebar.jsx';
 import Header from './components/layout/Header.jsx';
 import GlobalMap from './tabs/GlobalMap.jsx';
@@ -14,10 +14,18 @@ const STORAGE_KEY = 'oceanwatch_incidents';
 const SETTINGS_KEY = 'oceanwatch_settings';
 
 const DEFAULT_SETTINGS = {
-  apiUrl: 'http://localhost:8000',
+  apiUrl: API_BASE_URL,
   confidenceThreshold: 0.5,
   minComponentPixels: 8,
 };
+
+function normalizeSettings(settings) {
+  const merged = { ...DEFAULT_SETTINGS, ...settings };
+  if (merged.apiUrl === 'http://localhost:8000') {
+    merged.apiUrl = API_BASE_URL;
+  }
+  return merged;
+}
 
 function loadStorage(key, fallback) {
   try {
@@ -32,7 +40,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(() => window.location.hash.replace('#/', '') || 'global');
   const [apiStatus, setApiStatus] = useState('unknown');
   const [incidents, setIncidents] = useState(() => loadStorage(STORAGE_KEY, []));
-  const [settings, setSettings]   = useState(() => loadStorage(SETTINGS_KEY, DEFAULT_SETTINGS));
+  const [settings, setSettings]   = useState(() => normalizeSettings(loadStorage(SETTINGS_KEY, DEFAULT_SETTINGS)));
 
   /* Persist incidents */
   useEffect(() => {

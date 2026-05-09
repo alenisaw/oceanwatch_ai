@@ -4,7 +4,7 @@ region: fra
 services:
   - name: api
     github:
-      repo: alenisaw/oceanwatch-ai
+      repo: alenisaw/oceanwatch_ai
       branch: main
       deploy_on_push: false
     dockerfile_path: docker/Dockerfile
@@ -21,3 +21,11 @@ services:
         value: cpu
       - key: OCEANWATCH_REPORTING_MODE
         value: template
+      - key: OCEANWATCH_MODEL_BACKEND
+        value: deterministic
+      - key: OCEANWATCH_REMOTE_GPU_URL
+        value: ""
+      - key: OCEANWATCH_REMOTE_GPU_TIMEOUT
+        value: "60"
+      - key: OCEANWATCH_CORS_ORIGINS
+        value: ""

@@ -10,7 +10,7 @@ COPY src ./src
 COPY scripts ./scripts
 COPY configs ./configs
 
-RUN python -m pip install -U pip && pip install -e ".[api]"
+RUN python -m pip install -U pip && pip install -e ".[api,vision]"
 
 EXPOSE 8000
 CMD ["uvicorn", "oceanwatch.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

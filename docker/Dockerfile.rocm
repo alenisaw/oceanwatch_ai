@@ -1,0 +1,23 @@
+FROM rocm/pytorch:latest
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    OCEANWATCH_ENV=production \
+    OCEANWATCH_RUNTIME=rocm \
+    OCEANWATCH_MODEL_BACKEND=deterministic
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY scripts ./scripts
+
+RUN python -m pip install -U pip && pip install -e ".[api,vision,ml]"
+
+EXPOSE 8000
+
+# Future ROCm hosts should run this image with AMD device access, for example:
+# docker run --device=/dev/kfd --device=/dev/dri --group-add video -p 8000:8000 oceanwatch-rocm
+# The current OceanWatch pipeline remains CPU-safe and deterministic until a real
+# ROCm model backend is wired through OCEANWATCH_MODEL_BACKEND=remote_gpu.
+CMD ["uvicorn", "oceanwatch.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

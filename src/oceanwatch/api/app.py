@@ -48,6 +48,8 @@ def create_app():
         run_demo_analysis,
         run_demo_analysis_with_artifacts,
     )
+    from oceanwatch.inference.remote_worker import get_model_backend, get_remote_worker_config
+    from oceanwatch.inference.runtime import get_runtime_info
 
     app = FastAPI(
         title="OceanWatch AI",
@@ -57,7 +59,7 @@ def create_app():
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=_cors_origins(),
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -65,8 +67,30 @@ def create_app():
     # ── Health ────────────────────────────────────────────────────────────────
 
     @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    def health() -> dict[str, object]:
+        runtime = get_runtime_info()
+        return {
+            "status": "ok",
+            "runtime": runtime["runtime"],
+            "model_backend": _benchmark_model_backend_label(get_model_backend()),
+        }
+
+    @app.get("/runtime")
+    def runtime() -> dict[str, object]:
+        worker_config = get_remote_worker_config()
+        model_backend = get_model_backend()
+        return {
+            **get_runtime_info(),
+            "model_backend": _benchmark_model_backend_label(model_backend),
+            "configured_model_backend": model_backend,
+            "remote_gpu_configured": bool(worker_config.url),
+            "remote_gpu_timeout_seconds": worker_config.timeout_seconds,
+            "inference_mode": (
+                "remote_gpu_worker_scaffold"
+                if model_backend == "remote_gpu" and worker_config.url
+                else "deterministic_demo_baseline"
+            ),
+        }
 
     # ── Demo ─────────────────────────────────────────────────────────────────
 
@@ -178,8 +202,11 @@ def create_app():
 
         latencies.sort()
         total_ms = sum(latencies)
+        model_backend = get_model_backend()
         return {
-            "hardware": "cpu (demo — swap for amd-mi300x on AMD infra)",
+            "runtime": get_runtime_info(),
+            "model_backend": _benchmark_model_backend_label(model_backend),
+            "configured_model_backend": model_backend,
             "tiles_tested": n,
             "avg_latency_ms": round(sum(latencies) / n, 2),
             "p95_latency_ms": round(latencies[int(n * 0.95) - 1], 2),
@@ -287,6 +314,24 @@ def create_app():
 
 _ALLOWED_EXTS = {".npy", ".npz", ".tif", ".tiff"}
 _NOAA_INCIDENTS_CSV_URL = "https://incidentnews.noaa.gov/raw/incidents.csv"
+
+
+def _cors_origins() -> list[str]:
+    raw = os.getenv("OCEANWATCH_CORS_ORIGINS", "").strip()
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
+
+def _benchmark_model_backend_label(configured_backend: str) -> str:
+    if configured_backend == "deterministic":
+        return "deterministic-demo-baseline"
+    return configured_backend
 
 
 def _validate_extension(filename: str | None) -> None:
