@@ -269,6 +269,16 @@ function formatPercent(value) {
   return `${Math.round(value * 100)}%`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[char]);
+}
+
 function buildTileStyle(basemap = 'standard') {
   return {
     version: 8,
@@ -527,10 +537,12 @@ function WebGLPollutionMap({
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   const pointsRef = useRef(new Map());
+  const latestRef = useRef({ geography, mapMode, oil, points });
 
   useEffect(() => {
     pointsRef.current = new Map(points.map((point) => [String(point.id), point]));
-  }, [points]);
+    latestRef.current = { geography, mapMode, oil, points };
+  }, [geography, mapMode, oil, points]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return undefined;
@@ -548,11 +560,12 @@ function WebGLPollutionMap({
     mapRef.current = map;
 
     map.on('load', () => {
-      addPollutionLayers(map, oil);
-      configureLayerMode(map, mapMode);
-      map.getSource('pollution').setData(toPointCollection(points));
-      map.getSource('zones').setData(toZoneCollection(points));
-      flyToGeography(map, geography);
+      const latest = latestRef.current;
+      addPollutionLayers(map, latest.oil);
+      configureLayerMode(map, latest.mapMode);
+      map.getSource('pollution').setData(toPointCollection(latest.points));
+      map.getSource('zones').setData(toZoneCollection(latest.points));
+      flyToGeography(map, latest.geography);
     });
 
     map.on('click', 'pollution-circles', (event) => {
@@ -590,7 +603,9 @@ function WebGLPollutionMap({
       })
         .setLngLat(event.lngLat)
         .setHTML(
-          `<strong>${point.name}</strong><span>${formatPercent(point.severity_score)} ${point.severity_label}</span>`,
+          `<strong>${escapeHtml(point.name)}</strong><span>${escapeHtml(
+            `${formatPercent(point.severity_score)} ${point.severity_label}`,
+          )}</span>`,
         )
         .addTo(map);
     });
@@ -942,6 +957,16 @@ function MissionHeader({ error, filteredSurface, loadedAt, onGenerateReport, onR
           OceanWatch blends official incident records with maritime oil-risk context, WebGL heat layers, zone overlays, and uncertainty-aware AI triage language.
         </p>
         {error && <p className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</p>}
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:hidden">
+          <button onClick={onGenerateReport} className="premium-button justify-center">
+            <FileText size={15} />
+            Report
+          </button>
+          <button onClick={onRefresh} className="premium-button justify-center">
+            <RefreshCcw size={15} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="hidden grid-cols-2 gap-2 rounded-[1.25rem] border border-slate-700/70 bg-slate-900/64 p-2.5 backdrop-blur-xl sm:grid sm:min-w-[320px] sm:gap-3 sm:p-3">

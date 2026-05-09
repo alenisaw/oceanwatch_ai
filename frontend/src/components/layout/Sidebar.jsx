@@ -5,7 +5,7 @@ const NAV_ITEMS = [
   { id: 'single',    label: 'Single Tile',     icon: Layers      },
   { id: 'batch',     label: 'Batch Analysis',  icon: Grid2x2     },
   { id: 'incidents', label: 'Incidents',        icon: AlertTriangle },
-  { id: 'benchmark', label: 'AMD Benchmark',   icon: Cpu         },
+  { id: 'benchmark', label: 'Runtime',         icon: Cpu         },
   { id: 'reports',   label: 'Reports',         icon: FileText    },
 ];
 

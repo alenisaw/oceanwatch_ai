@@ -3,7 +3,8 @@
  * All backend communication is isolated here.
  */
 
-const DEFAULT_BASE = import.meta.env.VITE_API_URL ?? '/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const DEFAULT_BASE = API_BASE_URL;
 
 function resolveBase(apiUrl) {
   return (apiUrl || DEFAULT_BASE).replace(/\/$/, '');
@@ -62,7 +63,7 @@ export async function analyzeBatch(files, apiUrl) {
 
 /**
  * Fetch benchmark results.
- * @returns {{ hardware, tiles_tested, avg_latency_ms, p95_latency_ms, p99_latency_ms, tiles_per_second, risk_distribution, timestamp }}
+ * @returns {{ runtime, model_backend, tiles_tested, avg_latency_ms, p95_latency_ms, p99_latency_ms, tiles_per_second, risk_distribution, timestamp }}
  */
 export async function fetchBenchmark(apiUrl) {
   return request('/benchmark', {}, apiUrl);

@@ -45,8 +45,8 @@ export default function AmdBenchmark({ apiUrl }) {
         <div className="flex items-center gap-2">
           <Cpu size={16} className="text-cyan-bright" aria-hidden="true" />
           <div>
-            <h2 className="text-sm font-semibold text-slate-100">AMD MI300X Benchmark</h2>
-            <p className="text-xs text-slate-500">Throughput and latency profiling for AMD Track 3</p>
+            <h2 className="text-sm font-semibold text-slate-100">Runtime Benchmark</h2>
+            <p className="text-xs text-slate-500">Throughput and latency profiling for the active backend</p>
           </div>
         </div>
         <button onClick={run} disabled={isLoading} className="btn-primary">
@@ -93,10 +93,10 @@ export default function AmdBenchmark({ apiUrl }) {
         <div className="flex flex-col gap-4 flex-1 min-h-0 animate-slide-up overflow-y-auto scrollable">
           {/* Metric cards */}
           <div className="grid grid-cols-5 gap-2">
-            <MetricCard label="Hardware"      value={r.hardware}                         icon={<Cpu size={13} />}       accent="text-cyan-bright" />
+            <MetricCard label="Runtime"       value={r.runtime?.runtime ?? 'cpu'}         icon={<Cpu size={13} />}       accent="text-cyan-bright" />
+            <MetricCard label="Backend"       value={r.model_backend ?? 'baseline'}       icon={<TrendingUp size={13} />} />
             <MetricCard label="Tiles Tested"  value={r.tiles_tested}                     icon={<BarChart2 size={13} />} />
             <MetricCard label="Avg Latency"   value={`${r.avg_latency_ms} ms`}           icon={<Clock size={13} />}     accent="text-sky-400" />
-            <MetricCard label="p95 Latency"   value={`${r.p95_latency_ms} ms`}           icon={<Clock size={13} />}     accent="text-slate-300" />
             <MetricCard label="Throughput"    value={`${r.tiles_per_second}/s`}          icon={<Zap size={13} />}       accent="text-cyan-bright" />
           </div>
 
@@ -113,6 +113,9 @@ export default function AmdBenchmark({ apiUrl }) {
 
               <div className="space-y-1">
                 {[
+                  { k: 'Runtime',      v: r.runtime?.runtime ?? 'cpu' },
+                  { k: 'Device',       v: r.runtime?.device_name ?? r.runtime?.device ?? 'cpu' },
+                  { k: 'Backend',      v: r.model_backend ?? 'baseline' },
                   { k: 'Avg latency',  v: `${r.avg_latency_ms} ms` },
                   { k: 'p95 latency',  v: `${r.p95_latency_ms} ms` },
                   { k: 'p99 latency',  v: `${r.p99_latency_ms} ms` },
@@ -160,10 +163,9 @@ export default function AmdBenchmark({ apiUrl }) {
 
               <div className="divider" />
               <div className="panel-raised p-3 text-xs text-slate-400 leading-relaxed">
-                <strong className="text-slate-300">AMD Track 3 note:</strong> On AMD MI300X hardware,
-                replace the <code className="font-mono text-cyan-dim">runtime: cpu</code> label with{' '}
-                <code className="font-mono text-cyan-dim">runtime: amd-mi300x</code> and swap
-                the inference backend to ROCm/HIP. Throughput scales with batch parallelism and GPU memory.
+                <strong className="text-slate-300">Runtime note:</strong> This benchmark reports the
+                actual detected runtime from the API. ROCm acceleration should only be claimed when{' '}
+                <code className="font-mono text-cyan-dim">/runtime</code> reports a real ROCm device.
               </div>
             </div>
           </div>

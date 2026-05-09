@@ -6,7 +6,7 @@ const TAB_TITLES = {
   single: 'Single Tile Analysis',
   batch: 'Batch Analysis',
   incidents: 'Incident Log',
-  benchmark: 'AMD MI300X Benchmark',
+  benchmark: 'Runtime Benchmark',
   reports: 'Environmental Report Studio',
   settings: 'Settings',
 };

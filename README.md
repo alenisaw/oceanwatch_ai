@@ -23,7 +23,14 @@ uvicorn oceanwatch.api.app:create_app --factory --host 127.0.0.1 --port 8000
 Backend URLs:
 
 - `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/runtime`
 - `http://127.0.0.1:8000/docs`
+
+Check the active runtime:
+
+```powershell
+curl http://127.0.0.1:8000/runtime
+```
 
 ### Frontend
 
@@ -38,10 +45,25 @@ npm run dev
 Open:
 
 ```text
-http://localhost:5173
+http://127.0.0.1:5173
 ```
 
-The frontend defaults to `http://localhost:8000` in Settings. If the backend runs on another port, update the Backend URL in the Settings tab.
+The frontend defaults to the same-origin `/api` proxy. If the backend runs on another port or host, set `VITE_API_URL` or update the Backend URL in the Settings tab.
+
+## Runtime Modes
+
+OceanWatch defaults to a CPU-safe deterministic demo baseline. This keeps local laptops,
+CI, and small cloud deployments reliable without GPU dependencies.
+
+| Mode | Environment | Notes |
+|---|---|---|
+| Deterministic CPU | `OCEANWATCH_MODEL_BACKEND=deterministic` | Default local and CI path. |
+| Remote GPU scaffold | `OCEANWATCH_MODEL_BACKEND=remote_gpu` plus `OCEANWATCH_REMOTE_GPU_URL` | Reserved for a future trusted worker service. |
+| ROCm container skeleton | `docker/Dockerfile.rocm` | Prepared for AMD GPU hosts, not enabled by default. |
+
+Use `/runtime` to inspect whether PyTorch, CUDA, or ROCm is actually available. The
+demo pipeline should still describe outputs as possible oil-like anomalies until
+analyst review confirms them.
 
 ## Useful Commands
 
@@ -57,6 +79,9 @@ Run synthetic pipeline artifacts:
 ```powershell
 python scripts/run_demo.py --output outputs/demo
 ```
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for local demo, CPU Docker, and future
+ROCm deployment notes.
 
 ## Repository Layout
 

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Save, RotateCcw, ExternalLink } from 'lucide-react';
+import { API_BASE_URL } from '../api/oceanwatch.js';
 
 const DEFAULTS = {
-  apiUrl:            'http://localhost:8000',
+  apiUrl:            API_BASE_URL,
   confidenceThreshold: 0.5,
   minComponentPixels:  8,
 };
@@ -44,7 +45,7 @@ export default function Settings({ settings, onSave }) {
                 value={form.apiUrl}
                 onChange={(e) => set('apiUrl', e.target.value)}
                 className="input-field"
-                placeholder="http://localhost:8000"
+                placeholder={API_BASE_URL}
                 aria-label="Backend API URL"
               />
             </Field>
@@ -133,7 +134,7 @@ export default function Settings({ settings, onSave }) {
               backscatter anomaly detection.
             </p>
             <p className="text-slate-500">
-              AMD Track 3 · Deterministic demo baseline · GPU inference available via ROCm/HIP.
+              Deterministic demo baseline · Future GPU worker support via ROCm/HIP.
             </p>
           </div>
         </div>
